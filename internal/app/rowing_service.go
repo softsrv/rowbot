@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,8 +52,11 @@ func NewRowingService(q *db.Queries, concept2Client *oauth.Concept2Client, encry
 //  1. Look up the local user linked to the Concept2 account.
 //  2. Retrieve and decrypt the stored OAuth token (refreshing if expired).
 //  3. Fetch the result from the Concept2 API.
-//  4. Find all Discord guilds the user is registered in.
-//  5. Post a rendered result image to each guild's configured reporting channel.
+//  4. Find all Discord guilds the user is registered in with a configured
+//     reporting channel.
+//  5. Render the result image once.
+//  6. Post it to every guild's reporting channel concurrently — the sends
+//     are independent Discord API calls with no ordering dependency.
 //
 // Business-logic discards (no linked user, no token, no Discord registrations,
 // no guild settings) return nil — only unexpected failures return errors.
@@ -146,7 +150,15 @@ func (s *RowingService) ProcessResult(ctx context.Context, concept2UserID int64,
 		return nil
 	}
 
-	// 7. For each registration, look up guild settings and send the image.
+	// 7. Resolve which channels actually need the result — guilds without a
+	// configured report channel are skipped — before rendering anything, so a
+	// user with no valid targets doesn't pay for a render that's never used.
+	type sendTarget struct {
+		guildID       string
+		discordUserID string
+		channelID     string
+	}
+	var targets []sendTarget
 	for _, reg := range registrations {
 		settings, settingsErr := s.q.GetGuildSettings(ctx, reg.GuildID)
 		if settingsErr != nil {
@@ -162,22 +174,50 @@ func (s *RowingService) ProcessResult(ctx context.Context, concept2UserID int64,
 			)
 			continue
 		}
-
-		if sendErr := s.sendResultImage(ctx, result, reg.DiscordUserID, settings.ReportChannelID); sendErr != nil {
-			slog.Error("concept2 result: send discord image failed",
-				"guild_id", reg.GuildID,
-				"channel_id", settings.ReportChannelID,
-				"result_id", resultID,
-				"error", sendErr,
-			)
-		} else {
-			slog.Info("concept2 result: discord image sent",
-				"guild_id", reg.GuildID,
-				"channel_id", settings.ReportChannelID,
-				"result_id", resultID,
-			)
-		}
+		targets = append(targets, sendTarget{
+			guildID:       reg.GuildID,
+			discordUserID: reg.DiscordUserID,
+			channelID:     settings.ReportChannelID,
+		})
 	}
+	if len(targets) == 0 {
+		slog.Info("concept2 result: no guilds with a configured report channel, discarding",
+			"user_id", identity.UserID,
+			"result_id", resultID,
+		)
+		return nil
+	}
+
+	// 8. Render once — every target guild posts the same image regardless of
+	// which channel it ends up in.
+	pngBytes, err := render.RenderResultPNG(result)
+	if err != nil {
+		return fmt.Errorf("render result image: %w", err)
+	}
+
+	// 9. Send to every target channel concurrently.
+	var wg sync.WaitGroup
+	for _, t := range targets {
+		wg.Add(1)
+		go func(t sendTarget) {
+			defer wg.Done()
+			if sendErr := s.sendResultImage(ctx, pngBytes, t.discordUserID, t.channelID); sendErr != nil {
+				slog.Error("concept2 result: send discord image failed",
+					"guild_id", t.guildID,
+					"channel_id", t.channelID,
+					"result_id", resultID,
+					"error", sendErr,
+				)
+				return
+			}
+			slog.Info("concept2 result: discord image sent",
+				"guild_id", t.guildID,
+				"channel_id", t.channelID,
+				"result_id", resultID,
+			)
+		}(t)
+	}
+	wg.Wait()
 
 	return nil
 }
@@ -191,15 +231,11 @@ func (s *RowingService) ProcessResult(ctx context.Context, concept2UserID int64,
 // generic and doesn't need to guess at the sport type.
 const activityMessageFormat = "<@%s> has completed an activity!"
 
-// sendResultImage renders a Concept2 result as a PNG image and posts it as a
-// Discord message attachment, with message content that @-mentions the
-// Discord user identified by discordUserID.
-func (s *RowingService) sendResultImage(ctx context.Context, result concept2.Result, discordUserID, channelID string) error {
-	pngBytes, err := render.RenderResultPNG(result)
-	if err != nil {
-		return fmt.Errorf("render result image: %w", err)
-	}
-
+// sendResultImage posts a pre-rendered result image as a Discord message
+// attachment, with message content that @-mentions the Discord user
+// identified by discordUserID. pngBytes is shared read-only across
+// concurrent calls (one per target guild) — safe, since none of them mutate it.
+func (s *RowingService) sendResultImage(ctx context.Context, pngBytes []byte, discordUserID, channelID string) error {
 	content := fmt.Sprintf(activityMessageFormat, discordUserID)
 
 	return discord.SendChannelMessageWithAttachment(ctx, s.httpClient, s.botToken, channelID, content, discord.Attachment{
