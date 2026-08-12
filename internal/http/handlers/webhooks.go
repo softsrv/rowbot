@@ -172,7 +172,7 @@ func (h *WebhookHandler) Concept2(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			// Use a fresh context — the request context is cancelled after the
 			// handler returns, which would immediately abort the processing.
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			defer cancel()
 			slog.Info("concept2 webhook: processing started",
 				"concept2_user_id", concept2UserID,
