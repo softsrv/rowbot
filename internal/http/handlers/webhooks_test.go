@@ -7,21 +7,21 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 // fakeRowingServicer is a minimal rowingServicer implementation that records
-// the last call it received, for assertions in tests.
+// the last call it received, for assertions in tests. Concept2 (the handler)
+// calls ProcessResult synchronously and doesn't respond until it returns, so
+// no synchronization beyond the mutex is needed to observe the call.
 type fakeRowingServicer struct {
 	mu       sync.Mutex
 	called   bool
 	c2UserID int64
 	resultID int64
-	done     chan struct{} // closed when ProcessResult is invoked, for synchronizing with the async goroutine
 }
 
 func newFakeRowingServicer() *fakeRowingServicer {
-	return &fakeRowingServicer{done: make(chan struct{}, 1)}
+	return &fakeRowingServicer{}
 }
 
 func (f *fakeRowingServicer) ProcessResult(ctx context.Context, concept2UserID int64, resultID int64) error {
@@ -30,10 +30,6 @@ func (f *fakeRowingServicer) ProcessResult(ctx context.Context, concept2UserID i
 	f.c2UserID = concept2UserID
 	f.resultID = resultID
 	f.mu.Unlock()
-	select {
-	case f.done <- struct{}{}:
-	default:
-	}
 	return nil
 }
 
@@ -67,12 +63,6 @@ func TestWebhookConcept2_ResultAdded(t *testing.T) {
 	rec := postWebhook(h, body, "application/json")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	select {
-	case <-svc.done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("ProcessResult was never called")
 	}
 
 	called, c2UserID, resultID := svc.snapshot()

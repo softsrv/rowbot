@@ -151,7 +151,11 @@ func (h *WebhookHandler) Concept2(w http.ResponseWriter, r *http.Request) {
 	concept2UserID := payload.Result.UserID
 	resultID := payload.Result.ID
 
-	// 6. Log and respond immediately; process asynchronously.
+	// 6. Log and process synchronously — Concept2's webhook delivery timeout
+	// isn't documented anywhere, so responding only once processing is done
+	// (rather than acking immediately and continuing in a goroutine) avoids
+	// relying on Cloud Run's default CPU throttling being loosened for
+	// post-response background work to actually run.
 	slog.Info("concept2 webhook received",
 		"event_type", payload.Type,
 		"concept2_user_id", concept2UserID,
@@ -169,27 +173,27 @@ func (h *WebhookHandler) Concept2(w http.ResponseWriter, r *http.Request) {
 			"concept2_user_id", concept2UserID,
 		)
 	default:
-		go func() {
-			// Use a fresh context — the request context is cancelled after the
-			// handler returns, which would immediately abort the processing.
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-			defer cancel()
-			slog.Info("concept2 webhook: processing started",
-				"concept2_user_id", concept2UserID,
+		// Derived from the request context (rather than context.Background())
+		// so that Concept2 disconnecting early cancels our work too, capped at
+		// 3 minutes as a safety upper bound in case the request context has no
+		// deadline of its own.
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+		defer cancel()
+		slog.Info("concept2 webhook: processing started",
+			"concept2_user_id", concept2UserID,
+			"result_id", resultID,
+		)
+		if err := h.svc.ProcessResult(ctx, concept2UserID, resultID); err != nil {
+			slog.Error("concept2 webhook: process result failed",
 				"result_id", resultID,
+				"error", err,
 			)
-			if err := h.svc.ProcessResult(ctx, concept2UserID, resultID); err != nil {
-				slog.Error("concept2 webhook: process result failed",
-					"result_id", resultID,
-					"error", err,
-				)
-				return
-			}
+		} else {
 			slog.Info("concept2 webhook: processing completed",
 				"concept2_user_id", concept2UserID,
 				"result_id", resultID,
 			)
-		}()
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
