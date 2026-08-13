@@ -15,7 +15,7 @@
 // Usage:
 //
 //	go run ./cmd/replaywebhook --result-id 119434929 --user-id 1890109
-//	go run ./cmd/replaywebhook --result-id 119434929 --user-id 1890109 --target http://localhost:8080/webhooks/concept2
+//	go run ./cmd/replaywebhook --result-id 119434929 --user-id 1890109 --rowbot-endpoint http://localhost:8080
 package main
 
 import (
@@ -27,20 +27,23 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
 func main() {
 	resultID := flag.Int64("result-id", 0, "Concept2 result ID to replay (required)")
 	userID := flag.Int64("user-id", 0, "Concept2 user ID that owns the result (required) — see concept2_user_id in the original webhook's server log line")
-	target := flag.String("target", "https://row-bot.xyz/webhooks/concept2", "webhook URL to POST to")
+	rowbotEndpoint := flag.String("rowbot-endpoint", "https://row-bot.xyz", "base URL of the RowBot instance to send the webhook to (e.g. http://localhost:8080 for a local instance) — /webhooks/concept2 is appended automatically")
 	flag.Parse()
 
 	if *resultID == 0 || *userID == 0 {
-		fmt.Fprintln(os.Stderr, "usage: replaywebhook --result-id <id> --user-id <id> [--target <url>]")
+		fmt.Fprintln(os.Stderr, "usage: replaywebhook --result-id <id> --user-id <id> [--rowbot-endpoint <url>]")
 		flag.PrintDefaults()
 		os.Exit(2)
 	}
+
+	target := strings.TrimRight(*rowbotEndpoint, "/") + "/webhooks/concept2"
 
 	// Matches internal/concept2.Concept2Payload's confirmed real shape
 	// exactly: flat, no "data" wrapper, only type/result.id/result.user_id
@@ -56,13 +59,13 @@ func main() {
 		log.Fatalf("marshal payload: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, *target, bytes.NewReader(payload))
+	req, err := http.NewRequest(http.MethodPost, target, bytes.NewReader(payload))
 	if err != nil {
 		log.Fatalf("build request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	fmt.Printf("POST %s\n%s\n", *target, payload)
+	fmt.Printf("POST %s\n%s\n", target, payload)
 
 	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
 	if err != nil {

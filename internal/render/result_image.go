@@ -494,7 +494,9 @@ func drawSplitsTable(dc *gg.Context, pieces []concept2.Split, hasHR bool, rowCou
 	if hasHR {
 		columns = append(columns, splitsColumn{"HR", 0.85, func(p concept2.Split) string {
 			if p.HeartRate != nil {
-				return strconv.Itoa(p.HeartRate.Average)
+				if v := p.HeartRate.Value(); v != 0 {
+					return strconv.Itoa(v)
+				}
 			}
 			return "—"
 		}})

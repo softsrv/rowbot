@@ -153,11 +153,17 @@ func (s *RowingService) ProcessResult(ctx context.Context, concept2UserID int64,
 	// 7. Resolve which channels actually need the result — guilds without a
 	// configured report channel are skipped — before rendering anything, so a
 	// user with no valid targets doesn't pay for a render that's never used.
+	// Deduplicated by (guild, channel) rather than trusting that registrations
+	// can never resolve to the same channel twice — discord_guild_settings.
+	// guild_id is UNIQUE today, so that can't currently happen, but this way
+	// the send loop doesn't depend on that constraint holding forever to avoid
+	// posting the same result twice to one channel.
 	type sendTarget struct {
 		guildID       string
 		discordUserID string
 		channelID     string
 	}
+	seen := make(map[string]bool) // keyed by guildID+"|"+channelID
 	var targets []sendTarget
 	for _, reg := range registrations {
 		settings, settingsErr := s.q.GetGuildSettings(ctx, reg.GuildID)
@@ -174,6 +180,17 @@ func (s *RowingService) ProcessResult(ctx context.Context, concept2UserID int64,
 			)
 			continue
 		}
+
+		key := reg.GuildID + "|" + settings.ReportChannelID
+		if seen[key] {
+			slog.Debug("concept2 result: duplicate guild+channel target, skipping",
+				"guild_id", reg.GuildID,
+				"channel_id", settings.ReportChannelID,
+			)
+			continue
+		}
+		seen[key] = true
+
 		targets = append(targets, sendTarget{
 			guildID:       reg.GuildID,
 			discordUserID: reg.DiscordUserID,

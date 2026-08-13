@@ -11,11 +11,40 @@ import (
 
 // HeartRateSummary holds a heart rate summary, when a monitor was
 // connected. It's used both on individual Splits/intervals and on the
-// top-level Result. Concept2 also reports min/max/ending/recovery here
-// (and, for the per-split/interval variant only, "rest"), which we don't
-// currently display and so don't capture.
+// top-level Result. Concept2 also reports "min" here (and, for the
+// per-split/interval variant only, "rest"), which we don't currently display
+// and so don't capture.
 type HeartRateSummary struct {
-	Average int `json:"average"`
+	Average  int `json:"average"`
+	Max      int `json:"max"`
+	Ending   int `json:"ending"`
+	Recovery int `json:"recovery"`
+}
+
+// Value returns the best available single heart rate figure, falling back
+// through Concept2's own fields in order — a monitor can fail to populate
+// some of them for a given result/interval (confirmed against a real
+// production delivery, 2026-08-12: a VariableInterval workout where every
+// interval's "average" came back 0 despite "ending" holding a real reading):
+//  1. Average, if non-zero
+//  2. Max, if Average is 0 and Max is non-zero
+//  3. Ending, if Max is 0 and Ending is non-zero
+//  4. Recovery, if Ending is 0 and Recovery is non-zero
+//  5. 0, if every value above is 0
+func (h HeartRateSummary) Value() int {
+	if h.Average != 0 {
+		return h.Average
+	}
+	if h.Max != 0 {
+		return h.Max
+	}
+	if h.Ending != 0 {
+		return h.Ending
+	}
+	if h.Recovery != 0 {
+		return h.Recovery
+	}
+	return 0
 }
 
 // Split holds data for one split or interval within a workout.
