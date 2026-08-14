@@ -31,6 +31,9 @@ spec:
         autoscaling.knative.dev/minScale: "0"
         autoscaling.knative.dev/maxScale: "5"
         run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/ingress: all
+        run.googleapis.com/ingress-status: all
+        run.googleapis.com/invoker-iam-disabled: "true"
     spec:
       containerConcurrency: 80
       timeoutSeconds: 60
