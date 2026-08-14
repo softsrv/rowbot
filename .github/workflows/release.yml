@@ -16,6 +16,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Needed now that the deploy step reads deploy/service.yaml from the
+      # repo (the release.yml build before this didn't need repo contents at
+      # all — it only called the GitHub API and gcloud directly).
+      - name: Check out code
+        uses: actions/checkout@v7
+
       - name: Validate version format
         run: |
           if ! [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -54,7 +60,17 @@ jobs:
       - name: setup-gcloud-sdk
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Deploy API to Cloud Run
-        run: gcloud run deploy rowbot --image "trriplejay/rowbot:${IMAGE_TAG}" --region us-central1
+      # deploy/service.yaml is the single source of truth for the service's
+      # config — everything except the image tag (which changes per release,
+      # so it's substituted here rather than hand-edited) lives there, not in
+      # this workflow or the Cloud Run console.
+      - name: Render Cloud Run service YAML
+        run: sed "s|__IMAGE__|trriplejay/rowbot:${IMAGE_TAG}|" deploy/service.yaml > /tmp/service.yaml
         env:
           IMAGE_TAG: ${{ steps.check.outputs.image_tag }}
+
+      # services replace sets the live service to exactly this spec (not a
+      # merge) — anything configured by hand in the console that isn't in
+      # deploy/service.yaml gets reset on every deploy.
+      - name: Deploy to Cloud Run
+        run: gcloud run services replace /tmp/service.yaml --region us-central1

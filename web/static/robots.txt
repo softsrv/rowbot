@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /auth/
+Disallow: /discord/
+Disallow: /webhooks/
+Disallow: /health
+Disallow: /ready

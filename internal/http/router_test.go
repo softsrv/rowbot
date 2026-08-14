@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -132,6 +133,30 @@ func TestUnmatchedPathReturns404(t *testing.T) {
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("got %d, want 404", rr.Code)
+	}
+}
+
+// TestRobotsTxt guards it being served at the root path (not just under
+// /static/, which crawlers don't look at) with the correct content type.
+func TestRobotsTxt(t *testing.T) {
+	t.Parallel()
+	router := httpapp.NewRouter(context.Background(), httpapp.RouterConfig{
+		Renderer:  newRouterTestRenderer(t),
+		JWTSecret: routerTestJWTSecret,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/robots.txt", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("got %d, want 200", rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "text/plain; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/plain; charset=utf-8", ct)
+	}
+	if !strings.Contains(rr.Body.String(), "User-agent: *") {
+		t.Errorf("body missing expected content, got: %s", rr.Body.String())
 	}
 }
 

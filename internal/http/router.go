@@ -78,6 +78,18 @@ func NewRouter(ctx context.Context, cfg RouterConfig) http.Handler {
 	staticFS, _ := fs.Sub(web.FS, "static")
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 
+	// robots.txt is served at the root path (not under /static/) since that's
+	// the only place crawlers look for it. Read once at startup — it's an
+	// embedded asset, not something that changes at runtime.
+	robotsTxt, err := web.FS.ReadFile("static/robots.txt")
+	if err != nil {
+		panic("read embedded robots.txt: " + err.Error())
+	}
+	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write(robotsTxt)
+	})
+
 	// ── Discord interactions (public — protected by Ed25519 signature) ────────
 	if cfg.DiscordInteractions != nil {
 		mux.HandleFunc("POST /discord/interactions", cfg.DiscordInteractions.Interactions)
