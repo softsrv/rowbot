@@ -114,6 +114,27 @@ func TestLandingPage_ValidAccessTokenRedirectsToDashboard(t *testing.T) {
 	}
 }
 
+// TestUnmatchedPathReturns404 guards against "GET /" silently reverting to a
+// net/http ServeMux subtree match (matching every unmatched path, not just
+// "/") — without the "{$}" exact-path anchor, bot-scan noise like
+// /wp-admin/install.php would run the full landing-page handler (including
+// its cookie/JWT checks) instead of getting a plain 404.
+func TestUnmatchedPathReturns404(t *testing.T) {
+	t.Parallel()
+	router := httpapp.NewRouter(context.Background(), httpapp.RouterConfig{
+		Renderer:  newRouterTestRenderer(t),
+		JWTSecret: routerTestJWTSecret,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/wp-admin/install.php", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("got %d, want 404", rr.Code)
+	}
+}
+
 func TestTermsAndPrivacyPagesArePublic(t *testing.T) {
 	t.Parallel()
 	router := httpapp.NewRouter(context.Background(), httpapp.RouterConfig{

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,9 +55,6 @@ type AuthService struct {
 	q    *db.Queries
 	pool pgxBeginner
 	cfg  AuthServiceConfig
-
-	// wg tracks background goroutines so Shutdown can drain them cleanly.
-	wg sync.WaitGroup
 }
 
 // NewAuthService constructs an AuthService with all dependencies injected.
@@ -68,23 +64,6 @@ func NewAuthService(q *db.Queries, pool pgxBeginner, cfg AuthServiceConfig) *Aut
 		pool: pool,
 		cfg:  cfg,
 	}
-}
-
-// Shutdown blocks until all in-flight background goroutines have finished.
-// Call this during application shutdown, after the HTTP server has stopped
-// accepting new requests.
-func (s *AuthService) Shutdown() {
-	s.wg.Wait()
-}
-
-// goSend runs fn in a tracked background goroutine. The WaitGroup is incremented
-// before launching so that Shutdown() can drain all outstanding sends.
-func (s *AuthService) goSend(fn func()) {
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		fn()
-	}()
 }
 
 // Logout revokes the given raw refresh token.

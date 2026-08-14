@@ -8,7 +8,7 @@ MODULE           := github.com/softsrv/rowbot
 # not our code, so it can't load .env itself — export DATABASE_URL in your
 # shell first (e.g. `set -a && source .env && set +a`) before running them.
 
-.PHONY: dev stop run build test fmt lint \
+.PHONY: dev stop run build test fmt lint check \
         daisyui-install tailwind tailwind-watch \
         migrate-up migrate-down migrate-create migrate-status check-database-url \
         sqlc-generate db-reset \
@@ -57,6 +57,30 @@ fmt:
 
 lint:
 	golangci-lint run
+
+# Fast local sanity check: fails on the first problem found rather than
+# collecting everything, so fix-and-rerun is quick. gofmt runs in check-only
+# mode (-l lists, never rewrites) — use `make fmt` to actually fix formatting.
+# staticcheck and govulncheck aren't part of the Go toolchain — install once:
+#   go install honnef.co/go/tools/cmd/staticcheck@latest
+#   go install golang.org/x/vuln/cmd/govulncheck@latest
+check:
+	@echo "==> go build"
+	go build ./...
+	@echo "==> gofmt (check only)"
+	@fmtout="$$(gofmt -l .)"; \
+	if [ -n "$$fmtout" ]; then \
+		echo "$$fmtout"; \
+		echo "gofmt: the file(s) above need formatting — run 'make fmt'"; \
+		exit 1; \
+	fi
+	@echo "==> go vet"
+	go vet ./...
+	@echo "==> staticcheck"
+	staticcheck ./...
+	@echo "==> govulncheck"
+	govulncheck ./...
+	@echo "all checks passed"
 
 ## ── CSS ──────────────────────────────────────────────────────────────────────
 

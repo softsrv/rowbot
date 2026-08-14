@@ -266,9 +266,6 @@ func main() {
 	// Stop background goroutines (token cleanup, rate-limiter sweepers).
 	stopCleanup()
 
-	// Wait for any in-flight email deliveries to complete before closing the pool.
-	authSvc.Shutdown()
-
 	pool.Close()
 	slog.Info("shutdown complete")
 }

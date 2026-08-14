@@ -122,21 +122,6 @@ func (h *AuthHandler) setTokenCookies(w http.ResponseWriter, result app.TokenRes
 	setTokenCookies(w, result, h.secure)
 }
 
-func (h *AuthHandler) renderError(w http.ResponseWriter, r *http.Request, status int, msg string) {
-	// HTMX 2.0 only processes 2xx responses for DOM swaps by default.
-	// Downgrade to 200 for HTMX requests so the error partial is actually
-	// swapped into the target element (e.g. #form-error).
-	if r.Header.Get("HX-Request") == "true" {
-		status = http.StatusOK
-	}
-	h.renderer.Partial(w, status, "partials/error.html", map[string]any{"Error": msg})
-}
-
-func htmxRedirect(w http.ResponseWriter, path string) {
-	w.Header().Set("HX-Redirect", path)
-	w.WriteHeader(http.StatusOK)
-}
-
 func (h *AuthHandler) deviceMeta(r *http.Request) app.DeviceMeta {
 	return deviceMetaFromRequest(r, h.trustedProxyCount)
 }

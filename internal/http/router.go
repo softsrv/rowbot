@@ -100,7 +100,12 @@ func NewRouter(ctx context.Context, cfg RouterConfig) http.Handler {
 		cfg.Renderer.Page(w, http.StatusOK, "privacy.html", nil)
 	})
 
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+	// {$} anchors this to the exact path "/" — without it, a pattern ending in
+	// "/" is a subtree match in net/http's ServeMux and catches every
+	// otherwise-unmatched path (e.g. bot-scan noise like /wp-admin/install.php),
+	// running the full landing-page logic below for each one instead of a
+	// plain 404.
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		// Send an already-authenticated visitor straight to the dashboard;
 		// only send them there for a genuinely valid access token — a stale
 		// or malformed cookie should land on the landing page rather than
