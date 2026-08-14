@@ -13,27 +13,16 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: rowbot
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/invoker-iam-disabled: "true"
 spec:
   template:
-    # To set any revision-level annotations — e.g. to keep an instance always
-    # warm (autoscaling.knative.dev/minScale: "1", trading cost for no cold
-    # starts) or to keep CPU allocated between requests rather than only
-    # while actively handling one (run.googleapis.com/cpu-throttling:
-    # "false" — relevant to cmd/app's background token-cleanup goroutine,
-    # which needs CPU on its own daily schedule regardless of in-flight
-    # requests) — add the block below. A "metadata:" key present with
-    # nothing under it parses as null, not an empty map, and gcloud will
-    # reject it — so leave this section out entirely unless you're actually
-    # using it, don't just add "metadata:" with everything else commented:
-    #
     metadata:
       annotations:
         autoscaling.knative.dev/minScale: "0"
         autoscaling.knative.dev/maxScale: "5"
         run.googleapis.com/cpu-throttling: "true"
-        run.googleapis.com/ingress: all
-        run.googleapis.com/ingress-status: all
-        run.googleapis.com/invoker-iam-disabled: "true"
     spec:
       containerConcurrency: 80
       timeoutSeconds: 60
