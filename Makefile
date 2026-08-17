@@ -12,7 +12,7 @@ MODULE           := github.com/softsrv/rowbot
         daisyui-install tailwind tailwind-watch \
         migrate-up migrate-down migrate-create migrate-status check-database-url \
         sqlc-generate db-reset \
-        docker-build docker-run prod clean
+        docker-build docker-run prod release clean
 
 ## ── Development ─────────────────────────────────────────────────────────────
 
@@ -138,6 +138,67 @@ docker-run:
 
 prod:
 	docker build -t $(APP_NAME):prod --build-arg APP_ENV=production .
+
+## ── Release ──────────────────────────────────────────────────────────────────
+
+# Cuts a release: regenerates CHANGELOG.md from the commits since the last
+# tag, commits and pushes that to main, then tags and pushes the tag (which
+# triggers release.yml to build, publish, and deploy). Usage:
+#   make release v1.2.0
+# The version is a positional argument, not VERSION=v1.2.0 — picked up via
+# MAKECMDGOALS and passed through by the "v%:" no-op pattern rule below, so
+# make doesn't try (and fail) to build a target literally named "v1.2.0".
+release:
+	@set -e; \
+	version="$(filter-out release,$(MAKECMDGOALS))"; \
+	if [ -z "$$version" ]; then \
+		echo "usage: make release vX.Y.Z"; exit 1; \
+	fi; \
+	if ! echo "$$version" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$'; then \
+		echo "release: '$$version' is not a valid version — expected vX.Y.Z (e.g. v1.2.0)"; exit 1; \
+	fi; \
+	if git rev-parse "$$version" >/dev/null 2>&1; then \
+		echo "release: tag $$version already exists"; exit 1; \
+	fi; \
+	if [ -n "$$(git status --porcelain)" ]; then \
+		echo "release: working tree is not clean — commit or stash changes first"; exit 1; \
+	fi; \
+	branch="$$(git rev-parse --abbrev-ref HEAD)"; \
+	if [ "$$branch" != "main" ]; then \
+		echo "release: must be run from main (currently on $$branch)"; exit 1; \
+	fi; \
+	git fetch origin main --quiet; \
+	if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/main)" ]; then \
+		echo "release: local main has diverged from origin/main — pull/push first"; exit 1; \
+	fi; \
+	last_tag="$$(git describe --tags --abbrev=0 2>/dev/null || true)"; \
+	if [ -n "$$last_tag" ]; then range="$$last_tag..HEAD"; else range="HEAD"; fi; \
+	log="$$(git log $$range --no-merges --pretty=format:'- %s (%h)')"; \
+	if [ -z "$$log" ]; then \
+		echo "release: no commits since $${last_tag:-the initial commit} — nothing to release"; exit 1; \
+	fi; \
+	tmp="$$(mktemp)"; \
+	{ \
+		echo "## $$version - $$(date +%Y-%m-%d)"; \
+		echo; \
+		echo "$$log"; \
+		echo; \
+		[ -f CHANGELOG.md ] && cat CHANGELOG.md; \
+	} > "$$tmp"; \
+	mv "$$tmp" CHANGELOG.md; \
+	git add CHANGELOG.md; \
+	git commit -m "docs: changelog for $$version"; \
+	git push origin main; \
+	git tag "$$version"; \
+	git push origin "$$version"; \
+	echo "released $$version"
+
+# Lets "make release v1.2.0" pass through without make complaining that
+# "v1.2.0" isn't a real target — swallowed here as a no-op. Scoped to goals
+# starting with "v" so a genuine typo of another target name still errors
+# normally instead of silently doing nothing.
+v%:
+	@:
 
 ## ── Clean ────────────────────────────────────────────────────────────────────
 

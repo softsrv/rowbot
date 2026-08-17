@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    # make release's commit only touches CHANGELOG.md — nothing `make check`
+    # covers actually changed, so skip the run.
+    paths-ignore:
+      - "CHANGELOG.md"
 
 permissions:
   contents: read
