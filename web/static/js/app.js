@@ -105,3 +105,22 @@ document.body.addEventListener('token-expired', async function () {
     });
   });
 })();
+
+// ── Guild dashboard: reporting channel confirmation modal ────────────────────
+
+// The channel-region partial (including this button and its modal) gets
+// swapped in fresh via htmx after every save (hx-swap="outerHTML"), so this
+// listens on `document` with delegation instead of binding to the button
+// directly — a listener attached once at page load wouldn't survive the swap.
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.js-open-channel-confirm');
+  if (!btn) return;
+  var select = document.getElementById('channel-select');
+  var target = document.getElementById('channel-confirm-new-channel');
+  if (select && target) {
+    var opt = select.options[select.selectedIndex];
+    target.textContent = opt ? opt.text : 'the selected channel';
+  }
+  var modal = document.getElementById('channel-confirm-modal');
+  if (modal) modal.showModal();
+});

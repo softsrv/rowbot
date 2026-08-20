@@ -26,7 +26,7 @@
         {{end}}
       </select>
     </label>
-    <button type="button" class="btn btn-sm btn-outline w-fit" onclick="var select=document.getElementById('channel-select'); var target=document.getElementById('channel-confirm-new-channel'); if (select && target) { target.textContent = select.options[select.selectedIndex] ? select.options[select.selectedIndex].text : 'the selected channel'; } document.getElementById('channel-confirm-modal').showModal();">Save reporting channel</button>
+    <button type="button" class="btn btn-sm btn-outline w-fit js-open-channel-confirm">Save</button>
   </form>
 
   <dialog id="channel-confirm-modal" class="modal">
@@ -34,7 +34,7 @@
       <form method="dialog">
         <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" aria-label="Close">✕</button>
       </form>
-      <h3 class="text-lg font-bold">Save reporting channel?</h3>
+      <h3 class="text-lg font-bold">Save changes?</h3>
       <div class="mt-4 space-y-2 text-sm text-base-content/70">
         <p>
           Current channel:
