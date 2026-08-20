@@ -93,7 +93,7 @@ func main() {
 		AppBaseURL:    cfg.AppBaseURL,
 	})
 	userSvc := app.NewUserService(queries)
-	discordSvc := app.NewDiscordService(queries)
+	discordSvc := app.NewDiscordService(queries, cfg.DiscordBotToken, nil)
 
 	// ── OAuth ─────────────────────────────────────────────────────────────────
 	var encrypter *secrets.Encrypter

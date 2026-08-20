@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/softsrv/rowbot/internal/db"
+	"github.com/softsrv/rowbot/internal/discord"
 )
 
 // ErrMissingGuildChannel is returned by SetChannel when any required identifier
@@ -21,12 +23,19 @@ var ErrMissingGuildChannel = errors.New("guild_id, channel_id, and set_by_user_i
 // It is independent of the OAuth flow: a Discord user who runs a slash
 // command need not have a site account.
 type DiscordService struct {
-	q *db.Queries
+	q          *db.Queries
+	botToken   string
+	httpClient *http.Client
 }
 
 // NewDiscordService constructs a DiscordService.
-func NewDiscordService(q *db.Queries) *DiscordService {
-	return &DiscordService{q: q}
+func NewDiscordService(q *db.Queries, botToken string, httpClient *http.Client) *DiscordService {
+	return &DiscordService{q: q, botToken: botToken, httpClient: httpClient}
+}
+
+// ListGuildTextChannels returns the guild's plain text channels from Discord.
+func (s *DiscordService) ListGuildTextChannels(ctx context.Context, guildID string) ([]discord.Channel, error) {
+	return discord.GetGuildChannels(ctx, s.httpClient, s.botToken, guildID)
 }
 
 // RegisterFromInteraction records (or updates) a Discord user's registration

@@ -9,6 +9,7 @@ import (
 
 	"github.com/softsrv/rowbot/internal/app"
 	"github.com/softsrv/rowbot/internal/db"
+	"github.com/softsrv/rowbot/internal/discord"
 	"github.com/softsrv/rowbot/internal/http/middleware"
 )
 
@@ -55,8 +56,10 @@ type discordRegistrationServicer interface {
 	ListRegisteredServers(ctx context.Context, userID uuid.UUID) ([]db.DiscordRegistration, error)
 	RegisterFromInteraction(ctx context.Context, discordUserID, discordUsername, guildID, guildName string) (db.DiscordRegistration, error)
 	UnregisterFromGuild(ctx context.Context, discordUserID, guildID string) error
+	SetChannel(ctx context.Context, guildID, guildName, channelID, channelName, setByUserID string) (db.DiscordGuildSetting, error)
 	ListConfiguredGuildIDs(ctx context.Context) (map[string]struct{}, error)
 	GetChannelSettings(ctx context.Context, guildID string) (db.DiscordGuildSetting, bool, error)
+	ListGuildTextChannels(ctx context.Context, guildID string) ([]discord.Channel, error)
 	CountRegisteredUsers(ctx context.Context, guildID string) (int64, error)
 }
 
@@ -327,23 +330,31 @@ func (h *ProfileHandler) GuildPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var channelConfigured bool
-	var channelName string
+	var channelName, currentChannelID string
 	if h.discordReg != nil {
 		if setting, ok, err := h.discordReg.GetChannelSettings(r.Context(), guildID); err != nil {
 			slog.WarnContext(r.Context(), "guild page: get channel settings", "guild_id", guildID, "error", err)
 		} else if ok {
 			channelConfigured = true
 			channelName = setting.ChannelName
+			currentChannelID = setting.ReportChannelID
 		}
 	}
 
-	// Only managers see this, so only bother counting for them.
+	// Only managers see this, so only bother counting and fetching channel
+	// choices for them.
 	var registeredCount int64
+	var textChannels []discord.Channel
 	if isAdmin && h.discordReg != nil {
 		if count, err := h.discordReg.CountRegisteredUsers(r.Context(), guildID); err != nil {
 			slog.WarnContext(r.Context(), "guild page: count registered users", "guild_id", guildID, "error", err)
 		} else {
 			registeredCount = count
+		}
+		if channels, err := h.discordReg.ListGuildTextChannels(r.Context(), guildID); err != nil {
+			slog.WarnContext(r.Context(), "guild page: list text channels", "guild_id", guildID, "error", err)
+		} else {
+			textChannels = channels
 		}
 	}
 
@@ -358,6 +369,8 @@ func (h *ProfileHandler) GuildPage(w http.ResponseWriter, r *http.Request) {
 		"ShowWizard":        showWizard,
 		"ChannelConfigured": channelConfigured,
 		"ChannelName":       channelName,
+		"CurrentChannelID":  currentChannelID,
+		"TextChannels":      textChannels,
 		"RegisteredCount":   registeredCount,
 	}
 
@@ -409,6 +422,97 @@ func (h *ProfileHandler) UnregisterDiscordServer(w http.ResponseWriter, r *http.
 		}
 	}
 
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", redirectPath)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.Redirect(w, r, redirectPath, http.StatusSeeOther)
+}
+
+// SetGuildChannel updates one guild's reporting channel from the web dashboard.
+// The submitted guild and channel identifiers are never trusted at face value:
+// the handler re-fetches the user's Discord guild memberships to prove they
+// manage this guild, and re-fetches Discord's text-channel list to prove the
+// posted channel belongs to it before writing.
+func (h *ProfileHandler) SetGuildChannel(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if h.oauth == nil || h.discordReg == nil {
+		h.renderError(w, r, http.StatusBadRequest, "Discord is not configured.")
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		h.renderError(w, r, http.StatusBadRequest, "Invalid form submission.")
+		return
+	}
+	channelID := r.Form.Get("channel_id")
+	if channelID == "" {
+		h.renderError(w, r, http.StatusBadRequest, "Please choose a reporting channel.")
+		return
+	}
+
+	guildID := r.PathValue("guildID")
+	memberships, err := h.oauth.GetDiscordGuildMemberships(r.Context(), user.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "set guild channel: get guild memberships", "user_id", user.ID, "error", err)
+		h.renderError(w, r, http.StatusInternalServerError, "Failed to update the channel. Please try again.")
+		return
+	}
+
+	var guildName string
+	var isManager bool
+	for _, g := range memberships {
+		if g.GuildID == guildID && g.IsAdmin {
+			guildName = g.GuildName
+			isManager = true
+			break
+		}
+	}
+	if !isManager {
+		h.renderError(w, r, http.StatusBadRequest, "That server isn't available to manage. Refresh the dashboard and try again.")
+		return
+	}
+
+	channels, err := h.discordReg.ListGuildTextChannels(r.Context(), guildID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "set guild channel: list text channels", "guild_id", guildID, "error", err)
+		h.renderError(w, r, http.StatusInternalServerError, "Failed to update the channel. Please try again.")
+		return
+	}
+	var channelName string
+	var channelFound bool
+	for _, ch := range channels {
+		if ch.ID == channelID {
+			channelName = ch.Name
+			channelFound = true
+			break
+		}
+	}
+	if !channelFound {
+		h.renderError(w, r, http.StatusBadRequest, "Please choose an available text channel.")
+		return
+	}
+
+	identity, err := h.oauth.GetDiscordIdentity(r.Context(), user.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "set guild channel: get discord identity", "user_id", user.ID, "error", err)
+		h.renderError(w, r, http.StatusInternalServerError, "Failed to update the channel. Please try again.")
+		return
+	}
+
+	if _, err := h.discordReg.SetChannel(r.Context(), guildID, guildName, channelID, channelName, identity.ProviderUserID); err != nil {
+		slog.WarnContext(r.Context(), "set guild channel: set channel", "user_id", user.ID, "guild_id", guildID, "channel_id", channelID, "error", err)
+		h.renderError(w, r, http.StatusInternalServerError, "Failed to update the channel. Please try again.")
+		return
+	}
+
+	redirectPath := "/dashboard/servers/" + guildID
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirectPath)
 		w.WriteHeader(http.StatusOK)
