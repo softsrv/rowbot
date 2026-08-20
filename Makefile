@@ -19,7 +19,15 @@ MODULE           := github.com/softsrv/rowbot
 # Full hot-reload: Go (air) + Tailwind watch in parallel. trap 'kill 0'
 # ensures Ctrl+C kills the entire process group, including air's spawned
 # ./tmp/main grandchild that recursive make -j2 would leave behind.
-dev:
+#
+# The one-shot `tailwind` build runs first, synchronously: air's first build
+# embeds whatever's on disk in web/static/css/dist at that instant (go:embed
+# is compile-time), and air's watcher excludes that directory (.air.toml), so
+# it never rebuilds when tailwind's --watch process writes to it. Without this,
+# a fresh checkout races air's first build against tailwind's first output —
+# lose the race and the server embeds a build with no app.css until some other
+# watched file change forces a rebuild.
+dev: tailwind
 	@trap 'kill 0' INT TERM; \
 	  air & \
 	  tailwindcss -i ./web/static/css/app.css -o ./web/static/css/dist/app.css --watch & \
