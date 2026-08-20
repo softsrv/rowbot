@@ -193,6 +193,104 @@ func TestGuildPageRendersChannelSelectForManager(t *testing.T) {
 	}
 }
 
+func TestGuildPageRendersServerSwitcher(t *testing.T) {
+	user := db.User{ID: uuid.New(), Email: "manager@example.com", SetupProgress: 5}
+	guildID := "guild-1"
+	discordReg := &fakeDiscordRegistration{}
+	oauthSvc := &fakeProfileOAuth{
+		memberships: []app.GuildMembership{
+			{GuildID: guildID, GuildName: "Test Guild", IsAdmin: true},
+			{GuildID: "guild-2", GuildName: "Other Guild", IsAdmin: true},
+		},
+		identity: db.OauthIdentity{ProviderUserID: "discord-user-1", ProviderUsername: pgtype.Text{String: "manager", Valid: true}},
+	}
+	h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newProfileRealTemplateRenderer(t), false)
+
+	rr := serveProfileRequest(t, user, h.GuildPage, http.MethodGet, "/dashboard/servers/"+guildID, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+	bodyBytes, _ := io.ReadAll(rr.Result().Body)
+	body := string(bodyBytes)
+	want := `href="/dashboard/servers/guild-2"`
+	if !strings.Contains(body, want) {
+		t.Fatalf("rendered dashboard missing %q in:\n%s", want, body)
+	}
+}
+
+func TestGuildPageRendersManagerBadge(t *testing.T) {
+	user := db.User{ID: uuid.New(), Email: "manager@example.com", SetupProgress: 5}
+	guildID := "guild-1"
+	discordReg := &fakeDiscordRegistration{}
+	oauthSvc := &fakeProfileOAuth{
+		memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Test Guild", IsAdmin: true}},
+		identity:    db.OauthIdentity{ProviderUserID: "discord-user-1", ProviderUsername: pgtype.Text{String: "manager", Valid: true}},
+	}
+	h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newProfileRealTemplateRenderer(t), false)
+
+	rr := serveProfileRequest(t, user, h.GuildPage, http.MethodGet, "/dashboard/servers/"+guildID, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rr.Code)
+	}
+	bodyBytes, _ := io.ReadAll(rr.Result().Body)
+	body := string(bodyBytes)
+	want := `<span class="badge badge-primary badge-outline">manager</span>`
+	if !strings.Contains(body, want) {
+		t.Fatalf("rendered dashboard missing %q in:\n%s", want, body)
+	}
+}
+
+func TestGuildPageRendersRegistrationAffordances(t *testing.T) {
+	user := db.User{ID: uuid.New(), Email: "manager@example.com", SetupProgress: 5}
+	guildID := "guild-1"
+
+	t.Run("registered user sees unregister", func(t *testing.T) {
+		discordReg := &fakeDiscordRegistration{
+			registrations: []db.DiscordRegistration{{GuildID: guildID, GuildName: "Test Guild"}},
+		}
+		oauthSvc := &fakeProfileOAuth{
+			memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Test Guild", IsAdmin: true}},
+			identity:    db.OauthIdentity{ProviderUserID: "discord-user-1", ProviderUsername: pgtype.Text{String: "manager", Valid: true}},
+		}
+		h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newProfileRealTemplateRenderer(t), false)
+
+		rr := serveProfileRequest(t, user, h.GuildPage, http.MethodGet, "/dashboard/servers/"+guildID, nil)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rr.Code)
+		}
+		bodyBytes, _ := io.ReadAll(rr.Result().Body)
+		body := string(bodyBytes)
+		want := `hx-post="/dashboard/servers/guild-1/unregister"`
+		if !strings.Contains(body, want) {
+			t.Fatalf("rendered dashboard missing %q in:\n%s", want, body)
+		}
+	})
+
+	t.Run("unregistered user sees register form", func(t *testing.T) {
+		discordReg := &fakeDiscordRegistration{}
+		oauthSvc := &fakeProfileOAuth{
+			memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Test Guild", IsAdmin: true}},
+			identity:    db.OauthIdentity{ProviderUserID: "discord-user-1", ProviderUsername: pgtype.Text{String: "manager", Valid: true}},
+		}
+		h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newProfileRealTemplateRenderer(t), false)
+
+		rr := serveProfileRequest(t, user, h.GuildPage, http.MethodGet, "/dashboard/servers/"+guildID, nil)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rr.Code)
+		}
+		bodyBytes, _ := io.ReadAll(rr.Result().Body)
+		body := string(bodyBytes)
+		for _, want := range []string{
+			`hx-post="/profile/discord-registration"`,
+			`<input type="hidden" name="guild_id" value="guild-1">`,
+		} {
+			if !strings.Contains(body, want) {
+				t.Fatalf("rendered dashboard missing %q in:\n%s", want, body)
+			}
+		}
+	})
+}
+
 func TestSetGuildChannelAuthorizationAndValidation(t *testing.T) {
 	user := db.User{ID: uuid.New(), Email: "manager@example.com", SetupProgress: 5}
 	guildID := "guild-1"
