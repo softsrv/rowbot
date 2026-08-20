@@ -1,34 +1,63 @@
 {{define "channel-region"}}
-<div id="channel-region" class="flex flex-col gap-2">
-  {{if .ChannelConfigured}}
-  {{if .ChannelName}}
-  <div class="text-sm text-base-content/70">Posting results to <span class="font-medium">#{{.ChannelName}}</span></div>
-  {{else}}
-  <div class="text-sm text-base-content/70">A results channel is configured.</div>
-  {{end}}
-  {{else}}
-  <div class="text-sm text-base-content/70">
-    No channel configured yet. Go to the channel you want results in and run
-    <code class="rounded bg-base-300 px-1.5 py-0.5 text-xs">/setchannel</code>.
+<div id="channel-region" class="card bg-base-100 shadow-xl">
+  <div class="card-body">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-primary">
+          <line x1="4" y1="9" x2="20" y2="9" />
+          <line x1="4" y1="15" x2="20" y2="15" />
+          <line x1="10" y1="3" x2="8" y2="21" />
+          <line x1="16" y1="3" x2="14" y2="21" />
+        </svg>
+        <div>
+          <p class="font-medium">Reporting channel</p>
+          {{if .ChannelConfigured}}
+          {{if .ChannelName}}
+          <p class="text-sm text-base-content/60">Posting results to <span class="font-medium text-base-content">#{{.ChannelName}}</span></p>
+          {{else}}
+          <p class="text-sm text-base-content/60">A results channel is configured.</p>
+          {{end}}
+          {{else}}
+          <p class="text-sm text-base-content/60">
+            Not set — run <code class="rounded bg-base-300 px-1.5 py-0.5 text-xs">/setchannel</code> in the channel you want.
+          </p>
+          {{end}}
+        </div>
+      </div>
+      {{if .ChannelConfigured}}
+      <span class="badge badge-success badge-outline shrink-0">configured</span>
+      {{else}}
+      <span class="badge badge-ghost shrink-0">not set</span>
+      {{end}}
+    </div>
+
+    {{if .IsAdmin}}
+    <div class="divider my-1"></div>
+
+    <div class="flex items-center justify-between text-sm">
+      <span class="text-base-content/60">Registered users</span>
+      <span class="badge badge-outline">{{.RegisteredCount}}</span>
+    </div>
+
+    {{if .TextChannels}}
+    <form id="channel-form" class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+      <label class="form-control w-full max-w-xs">
+        <span class="label-text">Change reporting channel</span>
+        <select id="channel-select" name="channel_id" class="select select-bordered select-sm w-full">
+          {{$currentChannelID := .CurrentChannelID}}
+          {{range .TextChannels}}
+          <option value="{{.ID}}" {{if eq .ID $currentChannelID}}selected{{end}}>#{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <button type="button" class="btn btn-sm btn-outline w-fit js-open-channel-confirm">Save</button>
+    </form>
+    {{end}}
+    {{end}}
   </div>
-  {{end}}
 
   {{if .IsAdmin}}
-  <div class="text-sm text-base-content/70">Users registered: <span class="font-medium">{{.RegisteredCount}}</span></div>
   {{if .TextChannels}}
-  <form id="channel-form" class="flex flex-col gap-2 sm:flex-row sm:items-end">
-    <label class="form-control w-full max-w-xs">
-      <span class="label-text">Reporting channel</span>
-      <select id="channel-select" name="channel_id" class="select select-bordered w-full">
-        {{$currentChannelID := .CurrentChannelID}}
-        {{range .TextChannels}}
-        <option value="{{.ID}}" {{if eq .ID $currentChannelID}}selected{{end}}>#{{.Name}}</option>
-        {{end}}
-      </select>
-    </label>
-    <button type="button" class="btn btn-sm btn-outline w-fit js-open-channel-confirm">Save</button>
-  </form>
-
   <dialog id="channel-confirm-modal" class="modal">
     <div class="modal-box">
       <form method="dialog">
