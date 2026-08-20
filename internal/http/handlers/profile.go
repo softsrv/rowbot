@@ -514,8 +514,22 @@ func (h *ProfileHandler) SetGuildChannel(w http.ResponseWriter, r *http.Request)
 
 	redirectPath := "/dashboard/servers/" + guildID
 	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", redirectPath)
-		w.WriteHeader(http.StatusOK)
+		var registeredCount int64
+		if count, err := h.discordReg.CountRegisteredUsers(r.Context(), guildID); err != nil {
+			slog.WarnContext(r.Context(), "set guild channel: count registered users", "guild_id", guildID, "error", err)
+		} else {
+			registeredCount = count
+		}
+		data := map[string]any{
+			"GuildID":           guildID,
+			"IsAdmin":           true,
+			"ChannelConfigured": true,
+			"ChannelName":       channelName,
+			"CurrentChannelID":  channelID,
+			"TextChannels":      channels,
+			"RegisteredCount":   registeredCount,
+		}
+		h.renderer.Partial(w, http.StatusOK, "channel-region", data)
 		return
 	}
 	http.Redirect(w, r, redirectPath, http.StatusSeeOther)

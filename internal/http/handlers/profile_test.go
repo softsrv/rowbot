@@ -127,6 +127,11 @@ func newProfileRealTemplateRenderer(t *testing.T) *handlers.TemplateRenderer {
 
 func serveProfileRequest(t *testing.T, user db.User, handler http.HandlerFunc, method, target string, form url.Values) *httptest.ResponseRecorder {
 	t.Helper()
+	return serveProfileRequestWithHeaders(t, user, handler, method, target, form, nil)
+}
+
+func serveProfileRequestWithHeaders(t *testing.T, user db.User, handler http.HandlerFunc, method, target string, form url.Values, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
 	body := strings.NewReader("")
 	if form != nil {
 		body = strings.NewReader(form.Encode())
@@ -134,6 +139,9 @@ func serveProfileRequest(t *testing.T, user db.User, handler http.HandlerFunc, m
 	req := httptest.NewRequest(method, target, body)
 	if form != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 	tp, err := auth.IssueAccessToken(user.ID, user.Email, testJWTSecret, 15*time.Minute)
 	if err != nil {
@@ -173,7 +181,7 @@ func TestGuildPageRendersChannelSelectForManager(t *testing.T) {
 	body := string(bodyBytes)
 	for _, want := range []string{
 		`hx-post="/dashboard/servers/guild-1/channel"`,
-		`<select name="channel_id"`,
+		`<select id="channel-select" name="channel_id"`,
 		`<option value="chan-1"`,
 		`#general`,
 		`<option value="chan-2" selected`,
@@ -244,6 +252,33 @@ func TestSetGuildChannelAuthorizationAndValidation(t *testing.T) {
 		want := setChannelCall{guildID: guildID, guildName: "Test Guild", channelID: "chan-2", channelName: "training", setByUserID: "discord-user-1"}
 		if discordReg.setChannelCalls[0] != want {
 			t.Fatalf("SetChannel call = %+v, want %+v", discordReg.setChannelCalls[0], want)
+		}
+	})
+
+	t.Run("manager with valid channel htmx request returns partial without redirect", func(t *testing.T) {
+		discordReg := &fakeDiscordRegistration{channels: []discord.Channel{{ID: "chan-1", Name: "general"}, {ID: "chan-2", Name: "training"}}, registeredCount: 7}
+		oauthSvc := &fakeProfileOAuth{
+			memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Test Guild", IsAdmin: true}},
+			identity:    db.OauthIdentity{ProviderUserID: "discord-user-1"},
+		}
+		h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newProfileRealTemplateRenderer(t), false)
+
+		rr := serveProfileRequestWithHeaders(t, user, h.SetGuildChannel, http.MethodPost, "/dashboard/servers/"+guildID+"/channel", url.Values{"channel_id": {"chan-2"}}, map[string]string{"HX-Request": "true"})
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", rr.Code)
+		}
+		if got := rr.Header().Get("HX-Redirect"); got != "" {
+			t.Fatalf("HX-Redirect = %q, want empty", got)
+		}
+		bodyBytes, _ := io.ReadAll(rr.Result().Body)
+		body := string(bodyBytes)
+		for _, want := range []string{`id="channel-region"`, `#training`, `hx-post="/dashboard/servers/guild-1/channel"`} {
+			if !strings.Contains(body, want) {
+				t.Fatalf("partial missing %q in:\n%s", want, body)
+			}
+		}
+		if len(discordReg.setChannelCalls) != 1 {
+			t.Fatalf("SetChannel calls = %d, want 1", len(discordReg.setChannelCalls))
 		}
 	})
 

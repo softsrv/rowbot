@@ -34,36 +34,7 @@
       {{if .IsAdmin}}<span class="badge badge-outline">manager</span>{{end}}
     </div>
 
-    {{if .ChannelConfigured}}
-    {{if .ChannelName}}
-    <div class="text-sm text-base-content/70">Posting results to <span class="font-medium">#{{.ChannelName}}</span></div>
-    {{else}}
-    <div class="text-sm text-base-content/70">A results channel is configured.</div>
-    {{end}}
-    {{else}}
-    <div class="text-sm text-base-content/70">
-      No channel configured yet. Go to the channel you want results in and run
-      <code class="rounded bg-base-300 px-1.5 py-0.5 text-xs">/setchannel</code>.
-    </div>
-    {{end}}
-
-    {{if .IsAdmin}}
-    <div class="text-sm text-base-content/70">Users registered: <span class="font-medium">{{.RegisteredCount}}</span></div>
-    {{if .TextChannels}}
-    <form hx-post="/dashboard/servers/{{.GuildID}}/channel" hx-disable="find button" class="flex flex-col gap-2 sm:flex-row sm:items-end">
-      <label class="form-control w-full max-w-xs">
-        <span class="label-text">Reporting channel</span>
-        <select name="channel_id" class="select select-bordered w-full">
-          {{$currentChannelID := .CurrentChannelID}}
-          {{range .TextChannels}}
-          <option value="{{.ID}}" {{if eq .ID $currentChannelID}}selected{{end}}>#{{.Name}}</option>
-          {{end}}
-        </select>
-      </label>
-      <button type="submit" class="btn btn-sm btn-outline w-fit">Save reporting channel</button>
-    </form>
-    {{end}}
-    {{end}}
+    {{template "channel-region" .}}
 
     {{if .IsRegistered}}
     <div class="text-base-content/70">You're registered to have results sent to this server.</div>
