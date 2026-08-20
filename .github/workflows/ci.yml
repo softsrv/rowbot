@@ -8,6 +8,9 @@ on:
     # covers actually changed, so skip the run.
     paths-ignore:
       - "CHANGELOG.md"
+  pull_request:
+    paths-ignore:
+      - "CHANGELOG.md"
 
 permissions:
   contents: read
@@ -29,9 +32,12 @@ jobs:
       # one-time local setup documented in the Makefile.
       - name: Install staticcheck and govulncheck
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: make check
         run: make check
+
+      - name: make test
+        run: make test
