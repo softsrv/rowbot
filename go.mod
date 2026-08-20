@@ -2,8 +2,6 @@ module github.com/softsrv/rowbot
 
 go 1.27.0
 
-toolchain go1.27.0
-
 require (
 	github.com/fogleman/gg v1.3.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
