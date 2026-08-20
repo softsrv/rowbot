@@ -44,7 +44,7 @@ type fakeProfileOAuth struct {
 	identity    db.OauthIdentity
 }
 
-func (f *fakeProfileOAuth) IsDiscordEnabled() bool { return true }
+func (f *fakeProfileOAuth) IsDiscordEnabled() bool  { return true }
 func (f *fakeProfileOAuth) IsConcept2Enabled() bool { return false }
 func (f *fakeProfileOAuth) GetDiscordIdentity(context.Context, uuid.UUID) (db.OauthIdentity, error) {
 	return f.identity, nil
@@ -65,13 +65,13 @@ type setChannelCall struct {
 }
 
 type fakeDiscordRegistration struct {
-	registrations    []db.DiscordRegistration
-	configuredIDs    map[string]struct{}
-	setting          db.DiscordGuildSetting
-	hasSetting       bool
-	channels         []discord.Channel
-	registeredCount  int64
-	setChannelCalls  []setChannelCall
+	registrations   []db.DiscordRegistration
+	configuredIDs   map[string]struct{}
+	setting         db.DiscordGuildSetting
+	hasSetting      bool
+	channels        []discord.Channel
+	registeredCount int64
+	setChannelCalls []setChannelCall
 }
 
 func (f *fakeDiscordRegistration) ListRegisteredServers(context.Context, uuid.UUID) ([]db.DiscordRegistration, error) {
@@ -154,14 +154,14 @@ func TestGuildPageRendersChannelSelectForManager(t *testing.T) {
 	user := db.User{ID: uuid.New(), Email: "manager@example.com", SetupProgress: 5}
 	guildID := "guild-1"
 	discordReg := &fakeDiscordRegistration{
-		setting: db.DiscordGuildSetting{GuildID: guildID, ReportChannelID: "chan-2", ChannelName: "training"},
-		hasSetting: true,
-		channels: []discord.Channel{{ID: "chan-1", Name: "general"}, {ID: "chan-2", Name: "training"}},
+		setting:         db.DiscordGuildSetting{GuildID: guildID, ReportChannelID: "chan-2", ChannelName: "training"},
+		hasSetting:      true,
+		channels:        []discord.Channel{{ID: "chan-1", Name: "general"}, {ID: "chan-2", Name: "training"}},
 		registeredCount: 7,
 	}
 	oauthSvc := &fakeProfileOAuth{
 		memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Test Guild", IsAdmin: true}},
-		identity: db.OauthIdentity{ProviderUserID: "discord-user-1", ProviderUsername: pgtype.Text{String: "manager", Valid: true}},
+		identity:    db.OauthIdentity{ProviderUserID: "discord-user-1", ProviderUsername: pgtype.Text{String: "manager", Valid: true}},
 	}
 	h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newProfileRealTemplateRenderer(t), false)
 
@@ -193,7 +193,7 @@ func TestSetGuildChannelAuthorizationAndValidation(t *testing.T) {
 		discordReg := &fakeDiscordRegistration{channels: []discord.Channel{{ID: "chan-1", Name: "general"}}}
 		oauthSvc := &fakeProfileOAuth{
 			memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Test Guild", IsAdmin: false}},
-			identity: db.OauthIdentity{ProviderUserID: "discord-user-1"},
+			identity:    db.OauthIdentity{ProviderUserID: "discord-user-1"},
 		}
 		h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newTestRenderer(t), false)
 
@@ -210,7 +210,7 @@ func TestSetGuildChannelAuthorizationAndValidation(t *testing.T) {
 		discordReg := &fakeDiscordRegistration{channels: []discord.Channel{{ID: "chan-1", Name: "general"}}}
 		oauthSvc := &fakeProfileOAuth{
 			memberships: []app.GuildMembership{{GuildID: "other-guild", GuildName: "Other Guild", IsAdmin: true}},
-			identity: db.OauthIdentity{ProviderUserID: "discord-user-1"},
+			identity:    db.OauthIdentity{ProviderUserID: "discord-user-1"},
 		}
 		h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newTestRenderer(t), false)
 
@@ -227,7 +227,7 @@ func TestSetGuildChannelAuthorizationAndValidation(t *testing.T) {
 		discordReg := &fakeDiscordRegistration{channels: []discord.Channel{{ID: "chan-1", Name: "general"}, {ID: "chan-2", Name: "training"}}}
 		oauthSvc := &fakeProfileOAuth{
 			memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Test Guild", IsAdmin: true}},
-			identity: db.OauthIdentity{ProviderUserID: "discord-user-1"},
+			identity:    db.OauthIdentity{ProviderUserID: "discord-user-1"},
 		}
 		h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newTestRenderer(t), false)
 
@@ -251,7 +251,7 @@ func TestSetGuildChannelAuthorizationAndValidation(t *testing.T) {
 		discordReg := &fakeDiscordRegistration{channels: []discord.Channel{{ID: "chan-1", Name: "general"}}}
 		oauthSvc := &fakeProfileOAuth{
 			memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Test Guild", IsAdmin: true}},
-			identity: db.OauthIdentity{ProviderUserID: "discord-user-1"},
+			identity:    db.OauthIdentity{ProviderUserID: "discord-user-1"},
 		}
 		h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newTestRenderer(t), false)
 
@@ -268,7 +268,7 @@ func TestSetGuildChannelAuthorizationAndValidation(t *testing.T) {
 		discordReg := &fakeDiscordRegistration{channels: []discord.Channel{{ID: "chan-1", Name: "general"}}}
 		oauthSvc := &fakeProfileOAuth{
 			memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Test Guild", IsAdmin: true}},
-			identity: db.OauthIdentity{ProviderUserID: "discord-user-1"},
+			identity:    db.OauthIdentity{ProviderUserID: "discord-user-1"},
 		}
 		h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newTestRenderer(t), false)
 
