@@ -49,6 +49,20 @@
 
     {{if .IsAdmin}}
     <div class="text-sm text-base-content/70">Users registered: <span class="font-medium">{{.RegisteredCount}}</span></div>
+    {{if .TextChannels}}
+    <form hx-post="/dashboard/servers/{{.GuildID}}/channel" hx-disable="find button" class="flex flex-col gap-2 sm:flex-row sm:items-end">
+      <label class="form-control w-full max-w-xs">
+        <span class="label-text">Reporting channel</span>
+        <select name="channel_id" class="select select-bordered w-full">
+          {{$currentChannelID := .CurrentChannelID}}
+          {{range .TextChannels}}
+          <option value="{{.ID}}" {{if eq .ID $currentChannelID}}selected{{end}}>#{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <button type="submit" class="btn btn-sm btn-outline w-fit">Save reporting channel</button>
+    </form>
+    {{end}}
     {{end}}
 
     {{if .IsRegistered}}
