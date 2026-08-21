@@ -1,0 +1,23 @@
+## v1.2.1 - 2026-08-21
+
+- small UI adjustments to the reporting channel section of the server page (d2b299b)
+- feat: remove reporting channel settings (#19) (753fbe3)
+- updates to the server page. new channel picker workflow. new UI design (5e6f6d7)
+- feat: add searchable channel picker (#17) (8faa017)
+- create a design skill that claude and other agents can use for any future UI changes (704a9c8)
+- update the UI on the server page based on claude redesign (84e66d2)
+- use latest go 1.26 patch version to avoid vulnerabilities (ea9b847)
+- fix save button for changing reporting channel (9154fb3)
+- ensure that tailwind runs first when using dev mode to avoid race condition (af29544)
+- feat: add reporting channel confirmation partial (#13) (cfb634c)
+- fix bad govulncheck version (2798ad7)
+- update golang version and static binary tool versions (b6fec49)
+- style: gofmt profile_test.go (#10) (f6d1077)
+- chore: go mod tidy (8d4b6c8)
+- chore: upgrade Go toolchain to 1.27 (#6) (5ebd3d3)
+- build: step 4 (d040404)
+- ci: pin staticcheck and govulncheck for Go 1.25 (c7dbb1b)
+- build: step 2 (ea843f8)
+- build: step 2 (#2) (d628152)
+- add script for creating auto changelog when creating a release (017002d)
+
