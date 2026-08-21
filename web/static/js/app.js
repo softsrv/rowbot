@@ -106,20 +106,66 @@ document.body.addEventListener('token-expired', async function () {
   });
 })();
 
-// ── Guild dashboard: reporting channel confirmation modal ────────────────────
+// ── Guild dashboard: reporting channel picker + confirmation modal ──────────
 
-// The channel-region partial (including this button and its modal) gets
-// swapped in fresh via htmx after every save (hx-swap="outerHTML"), so this
-// listens on `document` with delegation instead of binding to the button
-// directly — a listener attached once at page load wouldn't survive the swap.
+function updateChannelPickerFilter(picker) {
+  if (!picker) return;
+  var input = picker.querySelector('.js-channel-picker-filter');
+  var list = picker.querySelector('[data-channel-picker-list]');
+  var rows = picker.querySelectorAll('.js-channel-picker-option-row');
+  var empty = picker.querySelector('.js-channel-picker-empty');
+  var filter = input ? input.value.toLowerCase() : '';
+  var visibleCount = 0;
+
+  rows.forEach(function (row) {
+    var channelName = (row.dataset.channelName || '').toLowerCase();
+    var matches = channelName.indexOf(filter) !== -1;
+    row.classList.toggle('hidden', !matches);
+    if (matches) visibleCount += 1;
+  });
+
+  if (list) list.classList.toggle('hidden', visibleCount === 0);
+  if (empty) empty.classList.toggle('hidden', visibleCount !== 0);
+}
+
+// The channel-region partial (including this picker, button, and modal) gets
+// swapped in fresh via htmx after every save (hx-swap="outerHTML"), so these
+// listeners use `document` delegation instead of binding directly — a listener
+// attached once at page load wouldn't survive the swap.
+document.addEventListener('input', function (e) {
+  var input = e.target.closest('.js-channel-picker-filter');
+  if (!input) return;
+  updateChannelPickerFilter(input.closest('.js-channel-picker'));
+});
+
+document.addEventListener('click', function (e) {
+  var option = e.target.closest('.js-channel-picker-option');
+  if (!option) return;
+  var picker = option.closest('.js-channel-picker');
+  var form = option.closest('form');
+  var channelInput = form ? form.querySelector('input[name="channel_id"]') : null;
+  var channelName = option.dataset.channelName || 'the selected channel';
+
+  if (channelInput) {
+    channelInput.value = option.dataset.channelId || '';
+    channelInput.dataset.channelName = channelName;
+  }
+  if (picker) {
+    picker.querySelectorAll('.js-channel-picker-option').forEach(function (btn) {
+      var selected = btn === option;
+      btn.classList.toggle('active', selected);
+      btn.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+  }
+});
+
 document.addEventListener('click', function (e) {
   var btn = e.target.closest('.js-open-channel-confirm');
   if (!btn) return;
-  var select = document.getElementById('channel-select');
+  var channelInput = document.getElementById('channel-id');
   var target = document.getElementById('channel-confirm-new-channel');
-  if (select && target) {
-    var opt = select.options[select.selectedIndex];
-    target.textContent = opt ? opt.text : 'the selected channel';
+  if (channelInput && target) {
+    target.textContent = channelInput.dataset.channelName || 'the selected channel';
   }
   var modal = document.getElementById('channel-confirm-modal');
   if (modal) modal.showModal();
