@@ -38,7 +38,12 @@
         </div>
       </div>
       {{if .ChannelConfigured}}
-      <span class="badge badge-success badge-outline shrink-0">configured</span>
+      <div class="flex shrink-0 items-center gap-2">
+        {{if .IsAdmin}}
+        <button type="button" class="btn btn-sm btn-error btn-outline text-error js-open-channel-remove-confirm">Remove</button>
+        {{end}}
+        <span class="badge badge-success badge-outline">configured</span>
+      </div>
       {{else}}
       <span class="badge badge-ghost shrink-0">not set</span>
       {{end}}
@@ -102,6 +107,37 @@
                 hx-swap="outerHTML"
                 hx-disable="this"
                 class="btn btn-sm btn-primary">Confirm</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+  {{end}}
+  {{if .ChannelConfigured}}
+  <dialog id="channel-remove-modal" class="modal">
+    <div class="modal-box">
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" aria-label="Close">✕</button>
+      </form>
+      <h3 class="text-lg font-bold">Remove Results Channel?</h3>
+      <div class="mt-4 space-y-3 text-sm text-base-content/70">
+        <p>
+          RowBot will stop posting Concept2 results to
+          <span class="font-medium">{{if .ChannelName}}#{{.ChannelName}}{{else}}the configured reporting channel{{end}}</span>.
+        </p>
+        <p>You can set a reporting channel again later.</p>
+      </div>
+      <div class="modal-action">
+        <form method="dialog">
+          <button class="btn btn-sm btn-ghost">Cancel</button>
+        </form>
+        <button type="button"
+                hx-delete="/dashboard/servers/{{.GuildID}}/channel"
+                hx-target="#channel-region"
+                hx-swap="outerHTML"
+                hx-disable="this"
+                class="btn btn-sm btn-error">Confirm remove</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop">

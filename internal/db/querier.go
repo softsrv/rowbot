@@ -18,6 +18,7 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteDiscordRegistration(ctx context.Context, arg DeleteDiscordRegistrationParams) error
 	DeleteExpiredRefreshTokens(ctx context.Context) (int64, error)
+	DeleteGuildSettings(ctx context.Context, guildID string) error
 	DeleteOAuthIdentity(ctx context.Context, id uuid.UUID) error
 	DeleteStaleVerificationCodes(ctx context.Context) (int64, error)
 	DeleteUserByID(ctx context.Context, id uuid.UUID) error

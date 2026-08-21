@@ -160,6 +160,25 @@ func TestRobotsTxt(t *testing.T) {
 	}
 }
 
+func TestDashboardServerChannelDeleteRouteIsRegistered(t *testing.T) {
+	t.Parallel()
+	router := httpapp.NewRouter(context.Background(), httpapp.RouterConfig{
+		Renderer:  newRouterTestRenderer(t),
+		JWTSecret: routerTestJWTSecret,
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/dashboard/servers/guild-1/channel", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code == http.StatusNotFound || rr.Code == http.StatusMethodNotAllowed {
+		t.Fatalf("DELETE /dashboard/servers/{guildID}/channel was not routed, status = %d", rr.Code)
+	}
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want auth redirect from registered protected route", rr.Code)
+	}
+}
+
 func TestTermsAndPrivacyPagesArePublic(t *testing.T) {
 	t.Parallel()
 	router := httpapp.NewRouter(context.Background(), httpapp.RouterConfig{

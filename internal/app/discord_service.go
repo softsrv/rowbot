@@ -176,6 +176,15 @@ func (s *DiscordService) UnregisterFromGuild(ctx context.Context, discordUserID,
 	return nil
 }
 
+// RemoveChannelSettings removes a guild's configured reporting channel. A no-op
+// if no such settings row exists — DELETE affecting zero rows is not an error.
+func (s *DiscordService) RemoveChannelSettings(ctx context.Context, guildID string) error {
+	if err := s.q.DeleteGuildSettings(ctx, guildID); err != nil {
+		return fmt.Errorf("delete guild settings: %w", err)
+	}
+	return nil
+}
+
 // ListConfiguredGuildIDs returns the set of guild IDs an admin has configured
 // via /setchannel (i.e. that have a discord_guild_settings row). Used by the
 // dashboard wizard's step-3 picker to filter down to servers that are
