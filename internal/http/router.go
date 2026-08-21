@@ -161,6 +161,7 @@ func NewRouter(ctx context.Context, cfg RouterConfig) http.Handler {
 	mux.Handle("POST /dashboard/setup/skip", authMW(http.HandlerFunc(profileH.SetupSkipToRegister)))
 	mux.Handle("GET /dashboard/servers/{guildID}", authMW(http.HandlerFunc(profileH.GuildPage)))
 	mux.Handle("POST /dashboard/servers/{guildID}/channel", authMW(http.HandlerFunc(profileH.SetGuildChannel)))
+	mux.Handle("DELETE /dashboard/servers/{guildID}/channel", authMW(http.HandlerFunc(profileH.RemoveGuildChannel)))
 	mux.Handle("POST /dashboard/servers/{guildID}/unregister", authMW(http.HandlerFunc(profileH.UnregisterDiscordServer)))
 
 	// ── Global middleware chain ───────────────────────────────────────────────

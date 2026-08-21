@@ -11,5 +11,8 @@ RETURNING *;
 -- name: GetGuildSettings :one
 SELECT * FROM discord_guild_settings WHERE guild_id = $1 LIMIT 1;
 
+-- name: DeleteGuildSettings :exec
+DELETE FROM discord_guild_settings WHERE guild_id = $1;
+
 -- name: ListConfiguredGuildIDs :many
 SELECT guild_id FROM discord_guild_settings;

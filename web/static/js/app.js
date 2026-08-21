@@ -201,3 +201,10 @@ document.addEventListener('click', function (e) {
   var modal = document.getElementById('channel-confirm-modal');
   if (modal) modal.showModal();
 });
+
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.js-open-channel-remove-confirm');
+  if (!btn) return;
+  var modal = document.getElementById('channel-remove-modal');
+  if (modal) modal.showModal();
+});

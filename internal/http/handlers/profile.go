@@ -56,6 +56,7 @@ type discordRegistrationServicer interface {
 	ListRegisteredServers(ctx context.Context, userID uuid.UUID) ([]db.DiscordRegistration, error)
 	RegisterFromInteraction(ctx context.Context, discordUserID, discordUsername, guildID, guildName string) (db.DiscordRegistration, error)
 	UnregisterFromGuild(ctx context.Context, discordUserID, guildID string) error
+	RemoveChannelSettings(ctx context.Context, guildID string) error
 	SetChannel(ctx context.Context, guildID, guildName, channelID, channelName, setByUserID string) (db.DiscordGuildSetting, error)
 	ListConfiguredGuildIDs(ctx context.Context) (map[string]struct{}, error)
 	GetChannelSettings(ctx context.Context, guildID string) (db.DiscordGuildSetting, bool, error)
@@ -425,6 +426,81 @@ func (h *ProfileHandler) UnregisterDiscordServer(w http.ResponseWriter, r *http.
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirectPath)
 		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.Redirect(w, r, redirectPath, http.StatusSeeOther)
+}
+
+// RemoveGuildChannel removes one guild's configured reporting channel from the
+// web dashboard. The guild identifier is never trusted at face value: the
+// handler re-fetches the user's Discord guild memberships to prove they manage
+// this guild before deleting the settings row.
+func (h *ProfileHandler) RemoveGuildChannel(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.UserFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if h.oauth == nil || h.discordReg == nil {
+		h.renderError(w, r, http.StatusBadRequest, "Discord is not configured.")
+		return
+	}
+
+	guildID := r.PathValue("guildID")
+	memberships, err := h.oauth.GetDiscordGuildMemberships(r.Context(), user.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "remove guild channel: get guild memberships", "user_id", user.ID, "error", err)
+		h.renderError(w, r, http.StatusInternalServerError, "Failed to remove the channel. Please try again.")
+		return
+	}
+
+	var guildName string
+	var isManager bool
+	for _, g := range memberships {
+		if g.GuildID == guildID && g.IsAdmin {
+			guildName = g.GuildName
+			isManager = true
+			break
+		}
+	}
+	if !isManager {
+		h.renderError(w, r, http.StatusBadRequest, "That server isn't available to manage. Refresh the dashboard and try again.")
+		return
+	}
+
+	channels, err := h.discordReg.ListGuildTextChannels(r.Context(), guildID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "remove guild channel: list text channels", "guild_id", guildID, "error", err)
+		h.renderError(w, r, http.StatusInternalServerError, "Failed to remove the channel. Please try again.")
+		return
+	}
+
+	if err := h.discordReg.RemoveChannelSettings(r.Context(), guildID); err != nil {
+		slog.WarnContext(r.Context(), "remove guild channel: remove channel settings", "user_id", user.ID, "guild_id", guildID, "error", err)
+		h.renderError(w, r, http.StatusInternalServerError, "Failed to remove the channel. Please try again.")
+		return
+	}
+
+	redirectPath := "/dashboard/servers/" + guildID
+	if r.Header.Get("HX-Request") == "true" {
+		var registeredCount int64
+		if count, err := h.discordReg.CountRegisteredUsers(r.Context(), guildID); err != nil {
+			slog.WarnContext(r.Context(), "remove guild channel: count registered users", "guild_id", guildID, "error", err)
+		} else {
+			registeredCount = count
+		}
+		data := map[string]any{
+			"GuildID":           guildID,
+			"GuildName":         guildName,
+			"IsAdmin":           true,
+			"ChannelConfigured": false,
+			"ChannelName":       "",
+			"CurrentChannelID":  "",
+			"TextChannels":      channels,
+			"RegisteredCount":   registeredCount,
+		}
+		h.renderer.Partial(w, http.StatusOK, "channel-region", data)
 		return
 	}
 	http.Redirect(w, r, redirectPath, http.StatusSeeOther)

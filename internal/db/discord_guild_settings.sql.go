@@ -11,6 +11,15 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteGuildSettings = `-- name: DeleteGuildSettings :exec
+DELETE FROM discord_guild_settings WHERE guild_id = $1
+`
+
+func (q *Queries) DeleteGuildSettings(ctx context.Context, guildID string) error {
+	_, err := q.db.Exec(ctx, deleteGuildSettings, guildID)
+	return err
+}
+
 const getGuildSettings = `-- name: GetGuildSettings :one
 SELECT id, guild_id, report_channel_id, channel_name, set_by_user_id, created_at, updated_at FROM discord_guild_settings WHERE guild_id = $1 LIMIT 1
 `
