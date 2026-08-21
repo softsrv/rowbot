@@ -40,16 +40,28 @@
     </div>
 
     {{if .TextChannels}}
-    <form id="channel-form" class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
-      <label class="form-control w-full max-w-xs">
-        <span class="label-text">Change reporting channel</span>
-        <select id="channel-select" name="channel_id" class="select select-bordered select-sm w-full">
-          {{$currentChannelID := .CurrentChannelID}}
-          {{range .TextChannels}}
-          <option value="{{.ID}}" {{if eq .ID $currentChannelID}}selected{{end}}>#{{.Name}}</option>
-          {{end}}
-        </select>
-      </label>
+    {{$currentChannelID := .CurrentChannelID}}
+    <form id="channel-form" class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-start">
+      <input id="channel-id" name="channel_id" type="hidden" value="{{if .CurrentChannelID}}{{.CurrentChannelID}}{{else}}{{with index .TextChannels 0}}{{.ID}}{{end}}{{end}}" data-channel-name="{{if .ChannelName}}#{{.ChannelName}}{{else}}{{with index .TextChannels 0}}#{{.Name}}{{end}}{{end}}">
+      <div class="form-control w-full max-w-xs">
+        <label class="label" for="channel-picker-filter">
+          <span class="label-text">Change reporting channel</span>
+        </label>
+        <div class="js-channel-picker dropdown dropdown-open w-full">
+          <input id="channel-picker-filter" type="search" class="input input-bordered input-sm w-full js-channel-picker-filter" placeholder="Filter channels" autocomplete="off" aria-controls="channel-picker-options">
+          <ul id="channel-picker-options" class="dropdown-content menu menu-sm z-10 mt-1 max-h-80 w-full flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow" data-channel-picker-list>
+            {{range $i, $channel := .TextChannels}}
+            {{$selected := or (eq $channel.ID $currentChannelID) (and (not $currentChannelID) (eq $i 0))}}
+            <li class="js-channel-picker-option-row" data-channel-name="{{$channel.Name}}">
+              <button type="button" class="js-channel-picker-option h-8 min-h-8 justify-start {{if $selected}}active{{end}}" data-channel-id="{{$channel.ID}}" data-channel-name="#{{$channel.Name}}" aria-selected="{{if $selected}}true{{else}}false{{end}}">
+                <span>#{{$channel.Name}}</span>
+              </button>
+            </li>
+            {{end}}
+          </ul>
+          <p class="js-channel-picker-empty hidden rounded-box bg-base-100 p-3 text-sm italic text-base-content/60 shadow">not found</p>
+        </div>
+      </div>
       <button type="button" class="btn btn-sm btn-outline w-fit js-open-channel-confirm">Save</button>
     </form>
     {{end}}
@@ -84,7 +96,7 @@
         <button type="submit"
                 form="channel-form"
                 hx-post="/dashboard/servers/{{.GuildID}}/channel"
-                hx-include="#channel-select"
+                hx-include="#channel-id"
                 hx-target="#channel-region"
                 hx-swap="outerHTML"
                 hx-disable="this"

@@ -181,11 +181,17 @@ func TestGuildPageRendersChannelSelectForManager(t *testing.T) {
 	body := string(bodyBytes)
 	for _, want := range []string{
 		`hx-post="/dashboard/servers/guild-1/channel"`,
-		`<select id="channel-select" name="channel_id"`,
-		`<option value="chan-1"`,
+		`hx-include="#channel-id"`,
+		`<input id="channel-id" name="channel_id" type="hidden" value="chan-2" data-channel-name="#training"`,
+		`<input id="channel-picker-filter" type="search" class="input input-bordered input-sm w-full js-channel-picker-filter"`,
+		`placeholder="Filter channels"`,
+		`<ul id="channel-picker-options" class="dropdown-content menu menu-sm z-10 mt-1 max-h-80 w-full flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow"`,
+		`data-channel-id="chan-1" data-channel-name="#general" aria-selected="false"`,
 		`#general`,
-		`<option value="chan-2" selected`,
+		`data-channel-id="chan-2" data-channel-name="#training" aria-selected="true"`,
+		`js-channel-picker-option h-8 min-h-8 justify-start active`,
 		`#training`,
+		`js-channel-picker-empty hidden rounded-box bg-base-100 p-3 text-sm italic text-base-content/60 shadow">not found`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("rendered dashboard missing %q in:\n%s", want, body)
