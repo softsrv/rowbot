@@ -13,13 +13,26 @@
           <p class="font-medium">Reporting channel</p>
           {{if .ChannelConfigured}}
           {{if .ChannelName}}
-          <p class="text-sm text-base-content/60">Posting results to <span class="font-medium text-base-content">#{{.ChannelName}}</span></p>
+          <p class="text-sm text-base-content/60">
+            Posting results to <span class="font-medium text-base-content">#{{.ChannelName}}</span>
+            {{if and .IsAdmin .TextChannels}}
+            <button type="button" class="btn btn-xs btn-outline js-open-channel-confirm">Change</button>
+            {{end}}
+          </p>
           {{else}}
-          <p class="text-sm text-base-content/60">A results channel is configured.</p>
+          <p class="text-sm text-base-content/60">
+            A results channel is configured.
+            {{if and .IsAdmin .TextChannels}}
+            <button type="button" class="btn btn-xs btn-outline js-open-channel-confirm">Change</button>
+            {{end}}
+          </p>
           {{end}}
           {{else}}
           <p class="text-sm text-base-content/60">
             Not set — run <code class="rounded bg-base-300 px-1.5 py-0.5 text-xs">/setchannel</code> in the channel you want.
+            {{if and .IsAdmin .TextChannels}}
+            <button type="button" class="btn btn-xs btn-outline js-open-channel-confirm">Set channel</button>
+            {{end}}
           </p>
           {{end}}
         </div>
@@ -30,64 +43,52 @@
       <span class="badge badge-ghost shrink-0">not set</span>
       {{end}}
     </div>
-
-    {{if .IsAdmin}}
-    <div class="divider my-1"></div>
-
-    <div class="flex items-center justify-between text-sm">
-      <span class="text-base-content/60">Registered users</span>
-      <span class="badge badge-outline">{{.RegisteredCount}}</span>
-    </div>
-
-    {{if .TextChannels}}
-    {{$currentChannelID := .CurrentChannelID}}
-    <form id="channel-form" class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-start">
-      <input id="channel-id" name="channel_id" type="hidden" value="{{if .CurrentChannelID}}{{.CurrentChannelID}}{{else}}{{with index .TextChannels 0}}{{.ID}}{{end}}{{end}}" data-channel-name="{{if .ChannelName}}#{{.ChannelName}}{{else}}{{with index .TextChannels 0}}#{{.Name}}{{end}}{{end}}">
-      <div class="form-control w-full max-w-xs">
-        <label class="label" for="channel-picker-filter">
-          <span class="label-text">Change reporting channel</span>
-        </label>
-        <div class="js-channel-picker dropdown dropdown-open w-full">
-          <input id="channel-picker-filter" type="search" class="input input-bordered input-sm w-full js-channel-picker-filter" placeholder="Filter channels" autocomplete="off" aria-controls="channel-picker-options">
-          <ul id="channel-picker-options" class="dropdown-content menu menu-sm z-10 mt-1 max-h-80 w-full flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow" data-channel-picker-list>
-            {{range $i, $channel := .TextChannels}}
-            {{$selected := or (eq $channel.ID $currentChannelID) (and (not $currentChannelID) (eq $i 0))}}
-            <li class="js-channel-picker-option-row" data-channel-name="{{$channel.Name}}">
-              <button type="button" class="js-channel-picker-option h-8 min-h-8 justify-start {{if $selected}}active{{end}}" data-channel-id="{{$channel.ID}}" data-channel-name="#{{$channel.Name}}" aria-selected="{{if $selected}}true{{else}}false{{end}}">
-                <span>#{{$channel.Name}}</span>
-              </button>
-            </li>
-            {{end}}
-          </ul>
-          <p class="js-channel-picker-empty hidden rounded-box bg-base-100 p-3 text-sm italic text-base-content/60 shadow">not found</p>
-        </div>
-      </div>
-      <button type="button" class="btn btn-sm btn-outline w-fit js-open-channel-confirm">Save</button>
-    </form>
-    {{end}}
-    {{end}}
   </div>
 
   {{if .IsAdmin}}
   {{if .TextChannels}}
+  {{$currentChannelID := .CurrentChannelID}}
   <dialog id="channel-confirm-modal" class="modal">
     <div class="modal-box">
       <form method="dialog">
         <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" aria-label="Close">✕</button>
       </form>
-      <h3 class="text-lg font-bold">Save changes?</h3>
-      <div class="mt-4 space-y-2 text-sm text-base-content/70">
+      <h3 class="text-lg font-bold">Change Results Channel?</h3>
+      <div class="mt-4 space-y-4 text-sm text-base-content/70">
         <p>
           Current channel:
           <span class="font-medium">{{if .ChannelName}}#{{.ChannelName}}{{else}}none configured{{end}}</span>
         </p>
-        <p>
-          New channel:
-          <span id="channel-confirm-new-channel" class="font-medium">the selected channel</span>
-        </p>
-        <p class="alert alert-warning text-sm">
-          RowBot must be granted permission to post in this channel.
-        </p>
+        <form id="channel-form">
+          <input id="channel-id" name="channel_id" type="hidden" value="{{if .CurrentChannelID}}{{.CurrentChannelID}}{{else}}{{with index .TextChannels 0}}{{.ID}}{{end}}{{end}}" data-channel-name="{{if .ChannelName}}#{{.ChannelName}}{{else}}{{with index .TextChannels 0}}#{{.Name}}{{end}}{{end}}">
+          <div class="form-control w-full">
+            <label class="label pt-0" for="channel-picker-filter">
+              <span class="label-text">New reporting channel</span>
+            </label>
+            <div class="js-channel-picker w-full">
+              <input id="channel-picker-filter" type="search" class="input input-bordered w-full js-channel-picker-filter" placeholder="Search channels…" autocomplete="off" aria-controls="channel-picker-options">
+              <ul id="channel-picker-options" class="menu hidden mt-1 max-h-72 w-full flex-nowrap gap-1 overflow-y-auto rounded-box bg-base-200 p-2" data-channel-picker-list>
+                {{range $i, $channel := .TextChannels}}
+                {{$selected := or (eq $channel.ID $currentChannelID) (and (not $currentChannelID) (eq $i 0))}}
+                <li class="js-channel-picker-option-row" data-channel-name="{{$channel.Name}}">
+                  <button type="button" class="js-channel-picker-option justify-start py-2 {{if $selected}}active{{end}}" data-channel-id="{{$channel.ID}}" data-channel-name="#{{$channel.Name}}" aria-selected="{{if $selected}}true{{else}}false{{end}}">
+                    #{{$channel.Name}}
+                  </button>
+                </li>
+                {{end}}
+              </ul>
+              <p class="js-channel-picker-empty hidden mt-1 rounded-box bg-base-200 p-3 text-sm italic text-base-content/60">No channels found</p>
+            </div>
+          </div>
+        </form>
+        <div role="alert" class="alert alert-warning rounded-2xl text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>RowBot must be granted permission to post in this channel.</span>
+        </div>
       </div>
       <div class="modal-action">
         <form method="dialog">

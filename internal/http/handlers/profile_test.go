@@ -183,15 +183,15 @@ func TestGuildPageRendersChannelSelectForManager(t *testing.T) {
 		`hx-post="/dashboard/servers/guild-1/channel"`,
 		`hx-include="#channel-id"`,
 		`<input id="channel-id" name="channel_id" type="hidden" value="chan-2" data-channel-name="#training"`,
-		`<input id="channel-picker-filter" type="search" class="input input-bordered input-sm w-full js-channel-picker-filter"`,
-		`placeholder="Filter channels"`,
-		`<ul id="channel-picker-options" class="dropdown-content menu menu-sm z-10 mt-1 max-h-80 w-full flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow"`,
+		`<input id="channel-picker-filter" type="search" class="input input-bordered w-full js-channel-picker-filter"`,
+		`placeholder="Search channels…"`,
+		`<ul id="channel-picker-options" class="menu hidden mt-1 max-h-72 w-full flex-nowrap gap-1 overflow-y-auto rounded-box bg-base-200 p-2"`,
 		`data-channel-id="chan-1" data-channel-name="#general" aria-selected="false"`,
 		`#general`,
 		`data-channel-id="chan-2" data-channel-name="#training" aria-selected="true"`,
-		`js-channel-picker-option h-8 min-h-8 justify-start active`,
+		`js-channel-picker-option justify-start py-2 active`,
 		`#training`,
-		`js-channel-picker-empty hidden rounded-box bg-base-100 p-3 text-sm italic text-base-content/60 shadow">not found`,
+		`js-channel-picker-empty hidden mt-1 rounded-box bg-base-200 p-3 text-sm italic text-base-content/60">No channels found`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("rendered dashboard missing %q in:\n%s", want, body)

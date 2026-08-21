@@ -114,7 +114,10 @@ function updateChannelPickerFilter(picker) {
   var list = picker.querySelector('[data-channel-picker-list]');
   var rows = picker.querySelectorAll('.js-channel-picker-option-row');
   var empty = picker.querySelector('.js-channel-picker-empty');
-  var filter = input ? input.value.toLowerCase() : '';
+  // Strip a leading "#" so re-filtering after a selection (which fills the
+  // input with "#channel-name" as confirmation) still matches — row names
+  // are stored without it.
+  var filter = input ? input.value.toLowerCase().replace(/^#/, '') : '';
   var visibleCount = 0;
 
   rows.forEach(function (row) {
@@ -124,8 +127,11 @@ function updateChannelPickerFilter(picker) {
     if (matches) visibleCount += 1;
   });
 
-  if (list) list.classList.toggle('hidden', visibleCount === 0);
-  if (empty) empty.classList.toggle('hidden', visibleCount !== 0);
+  // Stay collapsed until the user actually types something — an empty
+  // filter matches every row, which would otherwise dump the full list open
+  // as soon as the box gets focus.
+  if (list) list.classList.toggle('hidden', filter === '' || visibleCount === 0);
+  if (empty) empty.classList.toggle('hidden', filter === '' || visibleCount !== 0);
 }
 
 // The channel-region partial (including this picker, button, and modal) gets
@@ -136,6 +142,31 @@ document.addEventListener('input', function (e) {
   var input = e.target.closest('.js-channel-picker-filter');
   if (!input) return;
   updateChannelPickerFilter(input.closest('.js-channel-picker'));
+});
+
+// The list is a plain in-flow element, shown/hidden by toggling `hidden`
+// directly (not a daisyUI `dropdown`/`dropdown-content` overlay) — an
+// absolutely-positioned overlay here ended up covering the permission
+// warning and Confirm/Cancel buttons underneath it whenever it was open,
+// since it doesn't push flow content down. It only opens once the user
+// types (see updateChannelPickerFilter) — focusing the box alone shouldn't
+// dump the full channel list onto the page. Selecting all text on focus
+// means the first keystroke replaces it rather than appending to whatever
+// was left from a previous pick. `focus` doesn't bubble, so this has to run
+// in the capture phase to work with `document`-level delegation.
+document.addEventListener('focus', function (e) {
+  var input = e.target.closest && e.target.closest('.js-channel-picker-filter');
+  if (!input) return;
+  input.select();
+}, true);
+
+// Clicking anywhere outside an open picker closes its list.
+document.addEventListener('click', function (e) {
+  document.querySelectorAll('.js-channel-picker').forEach(function (picker) {
+    if (picker.contains(e.target)) return;
+    var list = picker.querySelector('[data-channel-picker-list]');
+    if (list) list.classList.add('hidden');
+  });
 });
 
 document.addEventListener('click', function (e) {
@@ -156,17 +187,17 @@ document.addEventListener('click', function (e) {
       btn.classList.toggle('active', selected);
       btn.setAttribute('aria-selected', selected ? 'true' : 'false');
     });
+    var filterInput = picker.querySelector('.js-channel-picker-filter');
+    if (filterInput) filterInput.value = channelName;
+    var list = picker.querySelector('[data-channel-picker-list]');
+    if (list) list.classList.add('hidden');
   }
+  if (document.activeElement) document.activeElement.blur();
 });
 
 document.addEventListener('click', function (e) {
   var btn = e.target.closest('.js-open-channel-confirm');
   if (!btn) return;
-  var channelInput = document.getElementById('channel-id');
-  var target = document.getElementById('channel-confirm-new-channel');
-  if (channelInput && target) {
-    target.textContent = channelInput.dataset.channelName || 'the selected channel';
-  }
   var modal = document.getElementById('channel-confirm-modal');
   if (modal) modal.showModal();
 });
