@@ -111,6 +111,9 @@ func NewRouter(ctx context.Context, cfg RouterConfig) http.Handler {
 	mux.HandleFunc("GET /privacy", func(w http.ResponseWriter, r *http.Request) {
 		cfg.Renderer.Page(w, http.StatusOK, "privacy.html", nil)
 	})
+	mux.HandleFunc("GET /pricing", func(w http.ResponseWriter, r *http.Request) {
+		cfg.Renderer.Page(w, http.StatusOK, "pricing.html", nil)
+	})
 
 	// {$} anchors this to the exact path "/" — without it, a pattern ending in
 	// "/" is a subtree match in net/http's ServeMux and catches every
