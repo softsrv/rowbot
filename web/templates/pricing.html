@@ -1,0 +1,83 @@
+{{define "title"}}Pricing — RowBot{{end}}
+
+{{define "main-class"}}container mx-auto px-4 py-8 max-w-5xl{{end}}
+
+{{define "content"}}
+<div class="space-y-10">
+  <section class="mx-auto max-w-3xl text-center">
+    <h1 class="text-4xl font-bold tracking-tight text-balance">Simple pricing for every Discord rowing community</h1>
+    <p class="mt-4 text-lg text-base-content/70 text-balance">
+      Choose the RowBot tier that fits how many reporting users your server needs.
+      Every tier keeps Concept2 results flowing straight to Discord.
+    </p>
+  </section>
+
+  <section class="grid gap-6 md:grid-cols-3" aria-label="Pricing tiers">
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">Free</h2>
+        <p class="text-3xl font-bold">Free</p>
+        <p class="text-sm text-base-content/60">No cost for small teams and trial servers.</p>
+        <div class="divider my-1"></div>
+        <p class="text-base-content/80">Includes up to 10 reporting users per server.</p>
+        <div class="card-actions mt-auto pt-4">
+          <button type="button" class="js-get-started btn btn-primary w-full">Get Started</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">Cozy Community</h2>
+        <p class="text-3xl font-bold">$5 <span class="text-base font-normal text-base-content/60">per month</span></p>
+        <p class="text-sm text-base-content/60">For growing clubs with a steady group of athletes.</p>
+        <div class="divider my-1"></div>
+        <p class="text-base-content/80">Includes up to 50 reporting users per server.</p>
+        <div class="card-actions mt-auto pt-4">
+          <button type="button" class="btn btn-outline w-full" disabled>Coming soon</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">Large Community</h2>
+        <p class="text-3xl font-bold">$10 <span class="text-base font-normal text-base-content/60">per month</span></p>
+        <p class="text-sm text-base-content/60">For larger servers that need room for more reporting athletes.</p>
+        <div class="divider my-1"></div>
+        <p class="text-base-content/80">Includes up to 250 reporting users per server.</p>
+        <div class="card-actions mt-auto pt-4">
+          <button type="button" class="btn btn-outline w-full" disabled>Coming soon</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- "Get Started" doesn't sign in immediately — it opens this modal first,
+     since a one-click jump straight to Discord's consent screen felt
+     unexpected for a visitor who might've just wanted to look around. -->
+<dialog id="get-started-modal" class="modal">
+  <div class="modal-box">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" aria-label="Close">✕</button>
+    </form>
+    <h3 class="text-lg font-bold">Start by logging in</h3>
+    <a href="/auth/discord/login" class="btn btn-primary w-full gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 127.14 96.36" fill="currentColor">
+        <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/>
+      </svg>
+      Login via Discord
+    </a>
+    <p class="mt-3 text-center text-xs text-base-content/60">
+      By signing in, you agree to our
+      <a href="/terms" target="_blank" rel="noopener noreferrer" class="link link-primary">Terms of Service</a>.
+      Our usage of your data is governed by our
+      <a href="/privacy" target="_blank" rel="noopener noreferrer" class="link link-primary">Privacy Policy</a>.
+    </p>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+{{end}}

@@ -32,6 +32,9 @@ var routerTestTemplateFS = fstest.MapFS{
 	"templates/privacy.html": &fstest.MapFile{Data: []byte(
 		`{{define "content"}}privacy{{end}}`,
 	)},
+	"templates/pricing.html": &fstest.MapFile{Data: []byte(
+		`{{define "content"}}pricing{{end}}`,
+	)},
 }
 
 func newRouterTestRenderer(t *testing.T) *handlers.TemplateRenderer {
@@ -179,14 +182,14 @@ func TestDashboardServerChannelDeleteRouteIsRegistered(t *testing.T) {
 	}
 }
 
-func TestTermsAndPrivacyPagesArePublic(t *testing.T) {
+func TestPublicInformationalPagesArePublic(t *testing.T) {
 	t.Parallel()
 	router := httpapp.NewRouter(context.Background(), httpapp.RouterConfig{
 		Renderer:  newRouterTestRenderer(t),
 		JWTSecret: routerTestJWTSecret,
 	})
 
-	for _, path := range []string{"/terms", "/privacy"} {
+	for _, path := range []string{"/terms", "/privacy", "/pricing"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
