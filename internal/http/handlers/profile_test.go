@@ -68,6 +68,13 @@ type removeChannelSettingsCall struct {
 	guildID string
 }
 
+type registerFromInteractionCall struct {
+	discordUserID   string
+	discordUsername string
+	guildID         string
+	guildName       string
+}
+
 type fakeDiscordRegistration struct {
 	registrations              []db.DiscordRegistration
 	configuredIDs              map[string]struct{}
@@ -75,6 +82,8 @@ type fakeDiscordRegistration struct {
 	hasSetting                 bool
 	channels                   []discord.Channel
 	registeredCount            int64
+	registerErr                error
+	registerCalls              []registerFromInteractionCall
 	setChannelCalls            []setChannelCall
 	removeChannelSettingsCalls []removeChannelSettingsCall
 }
@@ -83,8 +92,17 @@ func (f *fakeDiscordRegistration) ListRegisteredServers(context.Context, uuid.UU
 	return f.registrations, nil
 }
 
-func (f *fakeDiscordRegistration) RegisterFromInteraction(context.Context, string, string, string, string) (db.DiscordRegistration, error) {
-	return db.DiscordRegistration{}, nil
+func (f *fakeDiscordRegistration) RegisterFromInteraction(_ context.Context, discordUserID, discordUsername, guildID, guildName string) (db.DiscordRegistration, error) {
+	f.registerCalls = append(f.registerCalls, registerFromInteractionCall{
+		discordUserID:   discordUserID,
+		discordUsername: discordUsername,
+		guildID:         guildID,
+		guildName:       guildName,
+	})
+	if f.registerErr != nil {
+		return db.DiscordRegistration{}, f.registerErr
+	}
+	return db.DiscordRegistration{DiscordUserID: discordUserID, DiscordUsername: discordUsername, GuildID: guildID, GuildName: guildName}, nil
 }
 
 func (f *fakeDiscordRegistration) UnregisterFromGuild(context.Context, string, string) error {
@@ -160,12 +178,43 @@ func serveProfileRequestWithHeaders(t *testing.T, user db.User, handler http.Han
 	req.AddCookie(&http.Cookie{Name: "access_token", Value: tp.AccessToken})
 
 	mux := http.NewServeMux()
-	mux.Handle(method+" /dashboard/servers/{guildID}/channel", middleware.Authenticate(&fakeProfileUsers{user: user}, testJWTSecret, false)(http.HandlerFunc(handler)))
-	mux.Handle(method+" /dashboard/servers/{guildID}", middleware.Authenticate(&fakeProfileUsers{user: user}, testJWTSecret, false)(http.HandlerFunc(handler)))
+	wrapped := middleware.Authenticate(&fakeProfileUsers{user: user}, testJWTSecret, false)(http.HandlerFunc(handler))
+	mux.Handle(method+" /dashboard/servers/{guildID}/channel", wrapped)
+	mux.Handle(method+" /dashboard/servers/{guildID}", wrapped)
+	mux.Handle(method+" /profile/discord-registration", wrapped)
 
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	return rr
+}
+
+func TestRegisterDiscordServerShowsFullServerMessage(t *testing.T) {
+	user := db.User{ID: uuid.New(), Email: "rower@example.com", SetupProgress: 3}
+	guildID := "guild-full"
+	discordReg := &fakeDiscordRegistration{registerErr: app.ErrGuildFull}
+	oauthSvc := &fakeProfileOAuth{
+		memberships: []app.GuildMembership{{GuildID: guildID, GuildName: "Full Guild"}},
+		identity:    db.OauthIdentity{ProviderUserID: "discord-user-1", ProviderUsername: pgtype.Text{String: "rower", Valid: true}},
+	}
+	h := handlers.NewProfileHandler(&fakeProfileUsers{user: user}, oauthSvc, discordReg, "", newTestRenderer(t), false)
+
+	rr := serveProfileRequest(t, user, h.RegisterDiscordServer, http.MethodPost, "/profile/discord-registration", url.Values{"guild_id": {guildID}})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rr.Code)
+	}
+	bodyBytes, _ := io.ReadAll(rr.Result().Body)
+	body := string(bodyBytes)
+	for _, want := range []string{"server is full", "contact a server manager"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("full-server error missing %q in:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "Failed to register. Please try again.") {
+		t.Fatalf("full-server error rendered generic registration failure in:\n%s", body)
+	}
+	if len(discordReg.registerCalls) != 1 {
+		t.Fatalf("RegisterFromInteraction calls = %d, want 1", len(discordReg.registerCalls))
+	}
 }
 
 func TestGuildPageRendersChannelSelectForManager(t *testing.T) {

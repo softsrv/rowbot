@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -749,6 +750,10 @@ func (h *ProfileHandler) RegisterDiscordServer(w http.ResponseWriter, r *http.Re
 
 	if _, err := h.discordReg.RegisterFromInteraction(r.Context(), identity.ProviderUserID, identity.ProviderUsername.String, guildID, guildName); err != nil {
 		slog.WarnContext(r.Context(), "register discord server: register from interaction", "user_id", user.ID, "guild_id", guildID, "error", err)
+		if errors.Is(err, app.ErrGuildFull) {
+			h.renderError(w, r, http.StatusBadRequest, "This server is full and can't accept new registrations. Please contact a server manager.")
+			return
+		}
 		h.renderError(w, r, http.StatusInternalServerError, "Failed to register. Please try again.")
 		return
 	}
