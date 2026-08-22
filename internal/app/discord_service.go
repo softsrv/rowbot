@@ -19,6 +19,14 @@ import (
 // (guild ID, channel ID, or user ID) is empty.
 var ErrMissingGuildChannel = errors.New("guild_id, channel_id, and set_by_user_id are required")
 
+// ErrGuildFull is returned when a net-new Discord registration would exceed a
+// guild's registration cap.
+var ErrGuildFull = errors.New("guild has reached the maximum number of registrations")
+
+// MaxRegistrationsPerGuild is the maximum number of live Discord registrations
+// allowed in a single guild.
+const MaxRegistrationsPerGuild = 1000
+
 // DiscordService handles business logic for Discord bot interactions.
 // It is independent of the OAuth flow: a Discord user who runs a slash
 // command need not have a site account.
@@ -42,7 +50,9 @@ func (s *DiscordService) ListGuildTextChannels(ctx context.Context, guildID stri
 // from a slash command. The record is keyed on (discordUserID, guildID), so
 // the same user registering from two different servers produces two rows, and
 // a repeated /register in the same server is an idempotent upsert that refreshes
-// the display name and guild name.
+// the display name and guild name. The per-guild registration cap gates only
+// net-new registrants; an already-registered user may re-save even when the
+// guild is full.
 func (s *DiscordService) RegisterFromInteraction(ctx context.Context, discordUserID, discordUsername, guildID, guildName string) (db.DiscordRegistration, error) {
 	if err := s.RecordGuildSeen(ctx, guildID, guildName); err != nil {
 		slog.WarnContext(ctx, "discord_service: record guild seen failed, proceeding with registration",
@@ -72,6 +82,25 @@ func (s *DiscordService) RegisterFromInteraction(ctx context.Context, discordUse
 			"discord_user_id", discordUserID,
 			"error", err,
 		)
+	}
+
+	_, err = s.q.GetDiscordRegistration(ctx, db.GetDiscordRegistrationParams{
+		DiscordUserID: discordUserID,
+		GuildID:       guildID,
+	})
+	switch {
+	case err == nil:
+		// Already registered in this guild; re-saving must not consume a new slot.
+	case errors.Is(err, pgx.ErrNoRows):
+		count, err := s.q.CountDiscordRegistrationsByGuild(ctx, guildID)
+		if err != nil {
+			return db.DiscordRegistration{}, fmt.Errorf("count discord registrations by guild: %w", err)
+		}
+		if count >= MaxRegistrationsPerGuild {
+			return db.DiscordRegistration{}, ErrGuildFull
+		}
+	default:
+		return db.DiscordRegistration{}, fmt.Errorf("get discord registration: %w", err)
 	}
 
 	id, err := uuid.NewV7()
