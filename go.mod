@@ -1,6 +1,6 @@
 module github.com/softsrv/rowbot
 
-go 1.26.7
+go 1.26.9
 
 require (
 	github.com/fogleman/gg v1.3.0
