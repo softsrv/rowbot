@@ -32,7 +32,10 @@ jobs:
       # one-time local setup documented in the Makefile.
       - name: Install staticcheck and govulncheck
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@v0.8.0
+          # staticcheck dev build: no tagged release yet decodes Go 1.27.2's
+          # export-data v5 (v0.8.1 is newest tag and still errors); this
+          # pseudo-version is the first that supports the 1.27 toolchain.
+          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0-0.dev.0.20261009230814-452d5bb86b45
           go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
