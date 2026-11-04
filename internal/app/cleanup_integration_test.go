@@ -4,7 +4,6 @@ package app_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -14,24 +13,6 @@ import (
 	"github.com/softsrv/rowbot/internal/app"
 	"github.com/softsrv/rowbot/internal/db"
 )
-
-// seedUser inserts a minimal user row and registers a t.Cleanup that cascade-deletes
-// it and all referencing token rows when the test finishes.
-func seedUser(t *testing.T, ctx context.Context, pool *pgxpool.Pool) uuid.UUID {
-	t.Helper()
-	id, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("seedUser uuid: %v", err)
-	}
-	if _, err := db.New(pool).CreateUser(ctx, db.CreateUserParams{
-		ID:    id,
-		Email: fmt.Sprintf("cleanup-test-%s@example.com", id),
-	}); err != nil {
-		t.Fatalf("seedUser CreateUser: %v", err)
-	}
-	mustCleanupDelete(t, pool, "DELETE FROM users WHERE id = $1", id)
-	return id
-}
 
 // exists reports whether a row with the given id is present in table.
 func exists(t *testing.T, ctx context.Context, pool *pgxpool.Pool, table string, id uuid.UUID) bool {
@@ -55,7 +36,7 @@ func exists(t *testing.T, ctx context.Context, pool *pgxpool.Pool, table string,
 func TestIntegration_TokenCleanup_RefreshTokens(t *testing.T) {
 	pool := testDB(t)
 	ctx := context.Background()
-	userID := seedUser(t, ctx, pool)
+	userID := seedUser(t, pool).ID
 
 	insertRT := func(tokenHash string, expiresAt time.Time, revokedAt *time.Time) uuid.UUID {
 		t.Helper()
@@ -121,7 +102,7 @@ func TestIntegration_TokenCleanup_RefreshTokens(t *testing.T) {
 func TestIntegration_TokenCleanup_VerificationCodes(t *testing.T) {
 	pool := testDB(t)
 	ctx := context.Background()
-	userID := seedUser(t, ctx, pool)
+	userID := seedUser(t, pool).ID
 
 	insertEVC := func(code string, expiresAt time.Time, usedAt *time.Time) uuid.UUID {
 		t.Helper()
