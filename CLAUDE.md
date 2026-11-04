@@ -9,7 +9,11 @@ make dev              # Hot-reload: air (Go) + Tailwind watch, in parallel
 make run              # Run without hot-reload
 make build            # Compile to ./bin/app
 make test             # Run unit tests
-make test-integration # Run integration tests (requires Docker; uses testcontainers)
+make test-integration-local # One command, locally: start (or reuse) the disposable test Postgres, then guard + migrate + run the integration-tagged tests
+make test-integration # Integration tests against the TEST_DATABASE_URL in your environment (refuses anything but a *_test database that differs from DATABASE_URL, migrates, then runs the integration-tagged tests); CI runs this
+make test-db-up       # Start (or reuse) a disposable Postgres container and print its TEST_DATABASE_URL
+make test-db-down     # Remove that container
+make test-db-guard    # Check that the integration-test database guard refuses non-*_test URLs (no database needed)
 make test-cover       # Run tests with HTML coverage report
 make coverage-gate    # Run unit tests and enforce coverage threshold (>= COVERAGE_MIN)
 make mutation-test    # gremlins mutation testing; fails at or below MUTATION_EFFICACY_MIN
@@ -43,7 +47,9 @@ CI runs `make mutation-test` in diff mode against each pull request's base branc
 To run a single test:
 ```bash
 go test ./internal/auth/... -run TestJWTRoundTrip
-go test -tags integration ./internal/app/... -run TestAuthServiceIntegration
+make test-integration-local    # starts the test DB, then guard + migrate + all integration tests
+eval "$(make -s test-db-up)"   # for single tests: sets TEST_DATABASE_URL=postgres://rowbot:rowbot@localhost:55432/rowbot_test?sslmode=disable in your shell
+go test -tags integration -count=1 ./internal/app/... -run TestIntegration_Refresh
 ```
 
 ## Architecture

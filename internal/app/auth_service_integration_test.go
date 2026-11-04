@@ -4,34 +4,14 @@ package app_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/softsrv/rowbot/internal/app"
-	"github.com/softsrv/rowbot/internal/auth"
 	"github.com/softsrv/rowbot/internal/db"
 )
-
-// testDB connects to the database pointed to by TEST_DATABASE_URL.
-// Run integration tests with: TEST_DATABASE_URL=... go test -tags integration ./internal/app/...
-func testDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
-	}
-	pool, err := pgxpool.New(context.Background(), dsn)
-	if err != nil {
-		t.Fatalf("connect: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	return pool
-}
 
 func testAuthService(t *testing.T, pool *pgxpool.Pool) *app.AuthService {
 	t.Helper()
@@ -44,36 +24,12 @@ func testAuthService(t *testing.T, pool *pgxpool.Pool) *app.AuthService {
 	})
 }
 
-// testUser creates a user directly via db.Queries.CreateUser (mirroring how
-// every real account is provisioned — Discord OAuth is the sole
-// account-creation path) so Refresh/Logout can be exercised without
-// AuthService.Register/Login, which no longer exist.
-func testUser(t *testing.T, pool *pgxpool.Pool, email string) db.User {
-	t.Helper()
-	q := db.New(pool)
-	id, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("uuid.NewV7: %v", err)
-	}
-	user, err := q.CreateUser(context.Background(), db.CreateUserParams{
-		ID:    id,
-		Email: email,
-	})
-	if err != nil {
-		t.Fatalf("CreateUser: %v", err)
-	}
-	return user
-}
-
 func TestIntegration_Refresh(t *testing.T) {
 	pool := testDB(t)
 	svc := testAuthService(t, pool)
 	ctx := context.Background()
 
-	user := testUser(t, pool, "refresh@example.com")
-	t.Cleanup(func() {
-		_, _ = pool.Exec(ctx, "DELETE FROM users WHERE id = $1", user.ID)
-	})
+	user := seedUser(t, pool)
 
 	result, err := svc.Refresh(ctx, mustIssueRefreshToken(t, pool, user.ID), app.DeviceMeta{})
 	if err != nil {
@@ -100,30 +56,4 @@ func TestIntegration_Refresh(t *testing.T) {
 	if err != app.ErrTokenRevoked {
 		t.Errorf("expected ErrTokenRevoked after logout, got %v", err)
 	}
-}
-
-// mustIssueRefreshToken inserts a refresh token row directly and returns its
-// raw (unhashed) value, letting tests exercise Refresh/Logout without going
-// through a full OAuth login.
-func mustIssueRefreshToken(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID) string {
-	t.Helper()
-	q := db.New(pool)
-	id, err := uuid.NewV7()
-	if err != nil {
-		t.Fatalf("uuid.NewV7: %v", err)
-	}
-	raw, hashed, err := auth.GenerateRefreshToken()
-	if err != nil {
-		t.Fatalf("generate refresh token: %v", err)
-	}
-	_, err = q.InsertRefreshToken(context.Background(), db.InsertRefreshTokenParams{
-		ID:        id,
-		UserID:    userID,
-		TokenHash: hashed,
-		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(720 * time.Hour), Valid: true},
-	})
-	if err != nil {
-		t.Fatalf("InsertRefreshToken: %v", err)
-	}
-	return raw
 }
