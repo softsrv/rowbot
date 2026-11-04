@@ -2,6 +2,12 @@ APP_NAME         := rowbot
 BIN_DIR          := ./bin
 MODULE           := github.com/softsrv/rowbot
 COVERAGE_MIN     := 37.2
+# Mutation testing (make mutation-test). MUTATION_EFFICACY_MIN is a ratchet
+# that only goes up: measured 46.34% at 3d05d5c, and gremlins fails at
+# efficacy <= the bar, so the bar sits strictly below the measured value.
+GREMLINS_VERSION      := v0.6.0
+MUTATION_EFFICACY_MIN := 46
+MUTATION_EXCLUDE      := -E '^internal/db/' -E '^cmd/'
 
 # cmd/app, cmd/dbreset, and cmd/mockc2 each load ./.env themselves at startup
 # (via godotenv) — this Makefile no longer reads or exports it. The one
@@ -9,7 +15,7 @@ COVERAGE_MIN     := 37.2
 # not our code, so it can't load .env itself — export DATABASE_URL in your
 # shell first (e.g. `set -a && source .env && set +a`) before running them.
 
-.PHONY: dev stop run build test test-integration test-cover coverage-gate fmt lint check \
+.PHONY: dev stop run build test test-integration test-cover coverage-gate mutation-test fmt lint check \
         daisyui-install tailwind tailwind-watch \
         migrate-up migrate-down migrate-create migrate-status check-database-url \
         sqlc-generate db-reset \
@@ -60,6 +66,35 @@ test-integration:
 test-cover:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out
+
+# Mutation testing with gremlins over the unit-test build (no integration
+# tag), skipping sqlc-generated internal/db and the cmd/* entry points.
+# Fails when test efficacy is at or below MUTATION_EFFICACY_MIN. Set
+# MUTATION_DIFF=<git ref> to mutate only code changed since that ref (CI does
+# this against the PR base); without it the whole module runs (~18 min).
+# The bar goes in through a throwaway --config file, not --threshold-efficacy:
+# in gremlins v0.6.0 that flag reaches its config as a string, is read as 0,
+# and so never fails the run (a config-file number is read correctly). A diff
+# with no in-scope mutants makes gremlins report 0% and exit 10; the recipe
+# turns that all-zero summary into a pass (NOT COVERED mutants still fail).
+# gremlins isn't part of the Go toolchain — install the version pinned in
+# GREMLINS_VERSION above once, e.g. for v0.6.0:
+#   go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+mutation-test:
+	@echo "==> gremlins mutation test (required efficacy above $(MUTATION_EFFICACY_MIN)%)"
+	@cfg="$$(mktemp)"; out="$$(mktemp)"; st="$$(mktemp)"; trap 'rm -f "$$cfg" "$$out" "$$st"' EXIT; \
+	printf 'unleash:\n  threshold:\n    efficacy: %s\n' "$(MUTATION_EFFICACY_MIN)" > "$$cfg"; \
+	{ gremlins unleash --config "$$cfg" $(MUTATION_EXCLUDE) $(if $(MUTATION_DIFF),--diff $(MUTATION_DIFF)) . 2>&1; echo $$? > "$$st"; } | tee "$$out"; \
+	status=$$(cat "$$st"); \
+	if [ $$status -eq 10 ] && grep -q 'Killed: 0, Lived: 0, Not covered: 0$$' "$$out" && grep -q 'Timed out: 0,' "$$out"; then \
+		echo "no in-scope mutants to score — nothing to gate"; \
+		status=0; \
+	elif [ $$status -eq 10 ]; then \
+		echo "mutation efficacy below required $(MUTATION_EFFICACY_MIN)%"; \
+	elif [ $$status -ne 0 ]; then \
+		echo "gremlins failed (exit $$status) — see the test or tool error above"; \
+	fi; \
+	exit $$status
 
 coverage-gate:
 	go test -coverprofile=coverage.out ./...
