@@ -52,8 +52,31 @@ url_test='postgres://u:p@localhost:5432/rowbot_test?sslmode=disable'
 expect_refused "unset is refused and names make test-db-up" "make test-db-up"
 
 # 2. Equal to DATABASE_URL, even though the name ends in _test.
-expect_refused "equal to DATABASE_URL is refused" "equals DATABASE_URL" \
+expect_refused "equal to DATABASE_URL is refused" "same database as DATABASE_URL" \
 	"TEST_DATABASE_URL=$url_test" "DATABASE_URL=$url_test"
+
+# 2b. The same database written differently is still the same database.
+expect_refused "same database, localhost vs 127.0.0.1, is refused" "same database as DATABASE_URL" \
+	'TEST_DATABASE_URL=postgres://u:p@127.0.0.1:5432/rowbot_test' "DATABASE_URL=$url_test"
+expect_refused "same database, host case differs, is refused" "same database as DATABASE_URL" \
+	'TEST_DATABASE_URL=postgres://u:p@LocalHost:5432/rowbot_test' "DATABASE_URL=$url_test"
+expect_refused "same database, only the query string differs, is refused" "same database as DATABASE_URL" \
+	'TEST_DATABASE_URL=postgres://u:p@localhost:5432/rowbot_test?sslmode=require&application_name=x' "DATABASE_URL=$url_test"
+expect_refused "same database, default port omitted, is refused" "same database as DATABASE_URL" \
+	'TEST_DATABASE_URL=postgresql://u:other@localhost/rowbot_test' "DATABASE_URL=$url_test"
+expect_refused "same database, IPv6 loopback, is refused" "same database as DATABASE_URL" \
+	'TEST_DATABASE_URL=postgres://u:p@[::1]:5432/rowbot_test' "DATABASE_URL=$url_test"
+expect_refused "same database as a keyword-DSN DATABASE_URL is refused" "same database as DATABASE_URL" \
+	"TEST_DATABASE_URL=$url_test" 'DATABASE_URL=host=localhost port=5432 user=u dbname=rowbot_test'
+expect_refused "same database named by a dbname= query parameter is refused" "same database as DATABASE_URL" \
+	'TEST_DATABASE_URL=postgres://u:p@localhost:5432/other_test?dbname=rowbot_test' "DATABASE_URL=$url_test"
+
+# 2c. A dbname= / database= query parameter overrides the path name, so it
+# must end in _test itself.
+expect_refused "dbname= query parameter naming a non-_test db is refused" "database name: rowbot)" \
+	'TEST_DATABASE_URL=postgres://u:p@localhost:5432/rowbot_test?dbname=rowbot'
+expect_refused "database= query parameter naming a non-_test db is refused" "database name: prod)" \
+	'TEST_DATABASE_URL=postgres://u:p@localhost:5432/x_test?sslmode=disable&database=prod'
 
 # 3. A database name not ending in _test.
 expect_refused "non-_test name is refused" "database name: rowbot)" \
@@ -104,6 +127,20 @@ for u in "$url_test" 'postgresql://u:p@localhost:55432/rowbot_test'; do
 		fail "a *_test postgres URL is accepted" "$out"
 	else
 		pass "a *_test postgres URL is accepted"
+	fi
+done
+
+# 10. Accepted: a genuinely different database than DATABASE_URL — another
+# port, host, user or name.
+for u in 'postgres://u:p@localhost:55432/rowbot_test' \
+	'postgres://u:p@db.internal:5432/rowbot_test' \
+	'postgres://other:p@localhost:5432/rowbot_test' \
+	'postgres://u:p@localhost:5432/another_test'; do
+	run_guard "TEST_DATABASE_URL=$u" "DATABASE_URL=$url_test"
+	if [ "$rc" -ne 0 ]; then
+		fail "a different database than DATABASE_URL is accepted" "$out"
+	else
+		pass "a different database than DATABASE_URL is accepted"
 	fi
 done
 

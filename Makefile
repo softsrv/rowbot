@@ -18,14 +18,15 @@ TEST_DB_URL       := postgres://rowbot:rowbot@localhost:$(TEST_DB_PORT)/rowbot_t
 # (via godotenv) — this Makefile does not read .env.
 # test-integration migrates through go run at the pinned MIGRATE_VERSION, so
 # no install is needed; TEST_DATABASE_URL must name a disposable *_test
-# database (check-test-database-url refuses anything else, and refuses a
-# value equal to DATABASE_URL). The migrate-* targets keep the PATH binary:
+# database (check-test-database-url refuses anything else, and refuses one
+# naming the same database as DATABASE_URL). The migrate-* targets keep the PATH binary:
 # `migrate` is a third-party CLI, not our code, so it can't load .env itself
 # — export DATABASE_URL in your shell first (e.g.
 # `set -a && source .env && set +a`) before running them.
 
 .PHONY: dev stop run build test test-integration test-db-migrate fmt lint check \
         check-test-database-url test-db-guard test-db-up test-db-down \
+        test-integration-local \
         daisyui-install tailwind tailwind-watch \
         migrate-up migrate-down migrate-create migrate-status check-database-url \
         sqlc-generate db-reset \
@@ -79,10 +80,18 @@ test-integration: check-test-database-url test-db-migrate
 test-db-guard:
 	sh scripts/test-db-guard.sh
 
+# One command for a local run: starts (or reuses) the disposable test
+# database, then runs the guarded test-integration against it (guard, migrate,
+# integration tests). Leave the container up for reruns; make test-db-down
+# removes it.
+test-integration-local: test-db-up
+	@$(MAKE) --no-print-directory test-integration TEST_DATABASE_URL='$(TEST_DB_URL)'
+
 # Starts (or reuses) a disposable Postgres container for integration tests,
 # waits until it accepts connections (bounded: 30 tries, 1s apart), then
-# prints the TEST_DATABASE_URL to export. Usage:
-#   eval "$$(make -s test-db-up)" && make test-integration
+# prints the TEST_DATABASE_URL to export. To use it from your shell instead
+# of make test-integration-local, paste this into the shell:
+#   eval "$(make -s test-db-up)" && make test-integration
 test-db-up:
 	@set -e; \
 	if docker container inspect $(TEST_DB_CONTAINER) >/dev/null 2>&1; then \
@@ -162,9 +171,21 @@ tailwind-watch:
 
 ## ── Database ─────────────────────────────────────────────────────────────────
 
+# Two steps, so a failure names its cause: `migrate version` first proves the
+# database is reachable (on a fresh database it exits 1 printing "no
+# migration", which still means reachable); then `migrate up`, whose own error
+# output is shown, so a bad migration is reported as a migration failure, not
+# as a missing database.
 test-db-migrate: check-test-database-url
-	$(MIGRATE) -path db/migrations -database "$$TEST_DATABASE_URL" up || { \
-		echo "test database unreachable or migration failed — start one with: make test-db-up" >&2; \
+	@out=$$($(MIGRATE) -path db/migrations -database "$$TEST_DATABASE_URL" version 2>&1) || \
+	case "$$out" in \
+		*"no migration"*) ;; \
+		*) printf '%s\n' "$$out" | sed 's#[a-z]*://[^ ]*#<TEST_DATABASE_URL>#g' >&2; \
+		   echo "test-db-migrate: test database unreachable (see the error above) — locally, start one with: make test-db-up (or run: make test-integration-local)" >&2; \
+		   exit 1 ;; \
+	esac
+	@$(MIGRATE) -path db/migrations -database "$$TEST_DATABASE_URL" up || { \
+		echo "test-db-migrate: migration failed against a reachable test database — see migrate's error above; fix the migration in db/migrations" >&2; \
 		exit 1; \
 	}
 
@@ -185,38 +206,14 @@ check-database-url:
 	@test -n "$(DATABASE_URL)" || (echo "DATABASE_URL is not set — export it first, e.g.: set -a && source .env && set +a" && exit 1)
 
 # Refuses to let integration tests touch anything but a disposable database:
-# TEST_DATABASE_URL must be set, be a postgres:// or postgresql:// URL, differ
-# from DATABASE_URL, and name a database ending in _test. It reads the
-# environment ($$TEST_DATABASE_URL — a make command-line value is exported
-# too) and never prints either URL, which may hold a password; only the rule
-# and the parsed database name.
+# TEST_DATABASE_URL must be set, be a postgres:// or postgresql:// URL, name a
+# database ending in _test, and not name the same database (user, host, port,
+# name — parsed, not string-compared) as DATABASE_URL. It reads the
+# environment (a make command-line value is exported too) and never prints
+# either URL, which may hold a password. The rules live in
+# scripts/check-test-database-url.sh.
 check-test-database-url:
-	@u="$$TEST_DATABASE_URL"; \
-	if [ -z "$$u" ]; then \
-		echo "check-test-database-url: TEST_DATABASE_URL is not set — run 'make test-db-up' and set the TEST_DATABASE_URL it prints" >&2; \
-		exit 1; \
-	fi; \
-	case "$$u" in \
-		postgres://*|postgresql://*) ;; \
-		*) echo "check-test-database-url: refused — TEST_DATABASE_URL must start with postgres:// or postgresql:// (keyword DSNs are refused; database name: not parsed)" >&2; \
-		   exit 1 ;; \
-	esac; \
-	p=$${u%%[?]*}; rest=$${p#*://}; \
-	case "$$rest" in */*) db=$${p##*/} ;; *) db= ;; esac; \
-	case "$$db" in \
-		*[!A-Za-z0-9_.-]*) shown="(not shown: unexpected characters)" ;; \
-		"") shown="(empty)" ;; \
-		*) shown="$$db" ;; \
-	esac; \
-	if [ "$$u" = "$${DATABASE_URL:-}" ]; then \
-		echo "check-test-database-url: refused — TEST_DATABASE_URL equals DATABASE_URL (database name: $$shown)" >&2; \
-		exit 1; \
-	fi; \
-	case "$$db" in \
-		*_test) ;; \
-		*) echo "check-test-database-url: refused — the database name must end in _test (database name: $$shown)" >&2; \
-		   exit 1 ;; \
-	esac
+	@sh scripts/check-test-database-url.sh
 
 sqlc-generate:
 	sqlc generate -f db/sqlc.yaml
