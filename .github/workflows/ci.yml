@@ -18,6 +18,22 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: rowbot
+          POSTGRES_PASSWORD: rowbot
+          POSTGRES_DB: rowbot_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgres://rowbot:rowbot@localhost:5432/rowbot_test?sslmode=disable
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -44,3 +60,11 @@ jobs:
 
       - name: make test
         run: make test
+
+      # Proves the integration-test guard refuses any database not named
+      # *_test (and never prints the URL); needs no database.
+      - name: make test-db-guard
+        run: make test-db-guard
+
+      - name: make test-integration
+        run: make test-integration

@@ -39,6 +39,9 @@ func IssueAccessToken(userID uuid.UUID, email, secret string, expiry time.Durati
 	claims := Claims{
 		Email: email,
 		RegisteredClaims: jwt.RegisteredClaims{
+			// A unique jti makes every issued token distinct, even two issued
+			// within the same second (iat/exp have one-second resolution).
+			ID:        uuid.NewString(),
 			Subject:   userID.String(),
 			Issuer:    tokenIssuer,
 			Audience:  jwt.ClaimStrings{tokenIssuer},
