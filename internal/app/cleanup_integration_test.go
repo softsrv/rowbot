@@ -29,9 +29,7 @@ func seedUser(t *testing.T, ctx context.Context, pool *pgxpool.Pool) uuid.UUID {
 	}); err != nil {
 		t.Fatalf("seedUser CreateUser: %v", err)
 	}
-	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), "DELETE FROM users WHERE id = $1", id)
-	})
+	mustCleanupDelete(t, pool, "DELETE FROM users WHERE id = $1", id)
 	return id
 }
 

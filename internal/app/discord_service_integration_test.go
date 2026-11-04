@@ -22,19 +22,22 @@ func TestIntegrationRemoveChannelSettingsDeletesGuildSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("uuid.NewV7: %v", err)
 	}
-	guildID := "guild-remove-channel-settings"
+	suffix := id.String()
+	guildID := "guild-remove-channel-settings-" + suffix
 	_, err = q.UpsertGuildSettings(ctx, db.UpsertGuildSettingsParams{
 		ID:              id,
 		GuildID:         guildID,
-		ReportChannelID: "channel-1",
+		ReportChannelID: "channel-" + suffix,
 		ChannelName:     "training",
-		SetByUserID:     "discord-user-1",
+		SetByUserID:     "discord-user-" + suffix,
 	})
 	if err != nil {
 		t.Fatalf("UpsertGuildSettings: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = q.DeleteGuildSettings(context.Background(), guildID)
+		if err := q.DeleteGuildSettings(context.Background(), guildID); err != nil {
+			t.Errorf("cleanup DeleteGuildSettings(%s): %v", guildID, err)
+		}
 	})
 
 	if err := svc.RemoveChannelSettings(ctx, guildID); err != nil {

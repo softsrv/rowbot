@@ -1,14 +1,20 @@
 APP_NAME         := rowbot
 BIN_DIR          := ./bin
 MODULE           := github.com/softsrv/rowbot
+MIGRATE_VERSION := v4.20.1
+MIGRATE := go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
+
+export TEST_DATABASE_URL DATABASE_URL
 
 # cmd/app, cmd/dbreset, and cmd/mockc2 each load ./.env themselves at startup
-# (via godotenv) — this Makefile no longer reads or exports it. The one
-# exception is the migrate-* targets below: `migrate` is a third-party CLI,
-# not our code, so it can't load .env itself — export DATABASE_URL in your
-# shell first (e.g. `set -a && source .env && set +a`) before running them.
+# (via godotenv) — this Makefile no longer reads or exports it.
+# test-integration runs migrate through go run at the pinned MIGRATE_VERSION,
+# with no install; the migrate-* targets keep the PATH binary: `migrate` is
+# a third-party CLI, not our code, so it can't load .env itself — export
+# DATABASE_URL in your shell first (e.g. `set -a && source .env && set +a`)
+# before running them.
 
-.PHONY: dev stop run build test fmt lint check \
+.PHONY: dev stop run build test test-integration test-db-migrate fmt lint check \
         daisyui-install tailwind tailwind-watch \
         migrate-up migrate-down migrate-create migrate-status check-database-url \
         sqlc-generate db-reset \
@@ -53,8 +59,8 @@ build:
 test:
 	go test ./...
 
-test-integration:
-	go test -tags integration ./...
+test-integration: test-db-migrate
+	go test -tags integration -count=1 ./...
 
 test-cover:
 	go test -coverprofile=coverage.out ./...
@@ -108,6 +114,9 @@ tailwind-watch:
 	tailwindcss -i ./web/static/css/app.css -o ./web/static/css/dist/app.css --watch
 
 ## ── Database ─────────────────────────────────────────────────────────────────
+
+test-db-migrate:
+	$(MIGRATE) -path db/migrations -database "$$TEST_DATABASE_URL" up
 
 migrate-up: check-database-url
 	migrate -path db/migrations -database "$(DATABASE_URL)" up

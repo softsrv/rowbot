@@ -9,7 +9,7 @@ make dev              # Hot-reload: air (Go) + Tailwind watch, in parallel
 make run              # Run without hot-reload
 make build            # Compile to ./bin/app
 make test             # Run unit tests
-make test-integration # Run integration tests (requires Docker; uses testcontainers)
+make test-integration # Run integration tests (needs TEST_DATABASE_URL pointing at a disposable *_test database, applies migrations through the pinned go-run migrate, then runs the integration-tagged tests)
 make test-cover       # Run tests with HTML coverage report
 make fmt              # gofmt the repo
 make lint             # golangci-lint run

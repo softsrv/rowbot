@@ -4,6 +4,7 @@ package app_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -18,19 +19,44 @@ import (
 )
 
 // testDB connects to the database pointed to by TEST_DATABASE_URL.
-// Run integration tests with: TEST_DATABASE_URL=... go test -tags integration ./internal/app/...
+// Integration tests run through `make test-integration` with TEST_DATABASE_URL
+// set to a migrated, disposable *_test database (`make test-db-up` starts one).
+// A missing URL, an unreachable database or an unmigrated schema fails the
+// test: an integration test never skips.
 func testDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
+		t.Fatal("TEST_DATABASE_URL is not set: run `make test-integration` with it pointing at a disposable *_test database (`make test-db-up` starts one)")
 	}
-	pool, err := pgxpool.New(context.Background(), dsn)
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		t.Fatalf("connect: %v", err)
+		t.Fatalf("database unreachable: invalid TEST_DATABASE_URL: %v", err)
 	}
 	t.Cleanup(pool.Close)
+	if err := pool.Ping(ctx); err != nil {
+		t.Fatalf("database unreachable at TEST_DATABASE_URL (is it running? `make test-db-up`): %v", err)
+	}
+	var missing bool
+	if err := pool.QueryRow(ctx, "SELECT to_regclass('public.users') IS NULL").Scan(&missing); err != nil {
+		t.Fatalf("schema check failed: %v", err)
+	}
+	if missing {
+		t.Fatal("schema not migrated: table users is missing; run `make test-integration` (it applies migrations via test-db-migrate)")
+	}
 	return pool
+}
+
+// mustCleanupDelete registers a t.Cleanup that runs one DELETE and reports its
+// error: a failed cleanup would leave rows behind for later tests.
+func mustCleanupDelete(t *testing.T, pool *pgxpool.Pool, query string, args ...any) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.Background(), query, args...); err != nil {
+			t.Errorf("cleanup %q: %v", query, err)
+		}
+	})
 }
 
 func testAuthService(t *testing.T, pool *pgxpool.Pool) *app.AuthService {
@@ -47,8 +73,9 @@ func testAuthService(t *testing.T, pool *pgxpool.Pool) *app.AuthService {
 // testUser creates a user directly via db.Queries.CreateUser (mirroring how
 // every real account is provisioned — Discord OAuth is the sole
 // account-creation path) so Refresh/Logout can be exercised without
-// AuthService.Register/Login, which no longer exist.
-func testUser(t *testing.T, pool *pgxpool.Pool, email string) db.User {
+// AuthService.Register/Login, which no longer exist. The email is made unique
+// with the user id, and a t.Cleanup deletes the user (cascading its tokens).
+func testUser(t *testing.T, pool *pgxpool.Pool, emailPrefix string) db.User {
 	t.Helper()
 	q := db.New(pool)
 	id, err := uuid.NewV7()
@@ -57,11 +84,12 @@ func testUser(t *testing.T, pool *pgxpool.Pool, email string) db.User {
 	}
 	user, err := q.CreateUser(context.Background(), db.CreateUserParams{
 		ID:    id,
-		Email: email,
+		Email: fmt.Sprintf("%s-%s@example.com", emailPrefix, id),
 	})
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
+	mustCleanupDelete(t, pool, "DELETE FROM users WHERE id = $1", user.ID)
 	return user
 }
 
@@ -70,10 +98,7 @@ func TestIntegration_Refresh(t *testing.T) {
 	svc := testAuthService(t, pool)
 	ctx := context.Background()
 
-	user := testUser(t, pool, "refresh@example.com")
-	t.Cleanup(func() {
-		_, _ = pool.Exec(ctx, "DELETE FROM users WHERE id = $1", user.ID)
-	})
+	user := testUser(t, pool, "refresh")
 
 	result, err := svc.Refresh(ctx, mustIssueRefreshToken(t, pool, user.ID), app.DeviceMeta{})
 	if err != nil {
