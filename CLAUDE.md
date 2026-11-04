@@ -15,6 +15,9 @@ make test-db-up       # Start (or reuse) a disposable Postgres container and pri
 make test-db-down     # Remove that container
 make test-db-guard    # Check that the integration-test database guard refuses non-*_test URLs (no database needed)
 make test-cover       # Run tests with HTML coverage report
+make coverage-gate    # Run unit tests and enforce coverage threshold (>= COVERAGE_MIN)
+make mutation-test    # gremlins mutation testing; fails at or below MUTATION_EFFICACY_MIN
+make mutation-test MUTATION_DIFF=<ref>  # Mutate only code changed since <ref> (what CI runs)
 make fmt              # gofmt the repo
 make lint             # golangci-lint run
 
@@ -34,6 +37,12 @@ make tailwind-watch   # Watch mode (called by make dev)
 make docker-build     # Build dev image
 make prod             # Build production image (multi-stage, distroless, non-root)
 ```
+
+`make coverage-gate` measures unit-test coverage only (excluding sqlc-generated `internal/db/`; untested hand-written packages like `cmd/*` and `internal/oauth` count as 0%). It enforces a minimum coverage bar of 37.2%, configured in `COVERAGE_MIN` in the `Makefile`. `COVERAGE_MIN` is a ratchet that only goes up, and CI blocks any pull request below it.
+
+`make mutation-test` runs [gremlins](https://github.com/go-gremlins/gremlins) at the version pinned in `GREMLINS_VERSION` in the `Makefile` (install once with `go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0`). It mutates `internal/*` code, excluding sqlc-generated `internal/db/` and the `cmd/*` entry points, and it runs the unit tests only (no `integration` tag, no Docker). The bar is a test efficacy of 46%, owned by `MUTATION_EFFICACY_MIN` in the `Makefile`. 46.34% was measured on 2026-11-04, and gremlins fails at or below the bar. Like `COVERAGE_MIN`, it is a ratchet that only goes up. A full local run takes about 18 minutes on 4 cores. `MUTATION_DIFF=<ref>` limits the run to code changed since `<ref>`. The target exits non-zero below the bar, and it also exits non-zero if the unit tests themselves fail.
+
+CI runs `make mutation-test` in diff mode against each pull request's base branch, and a failure blocks the pull request. In diff mode, CI scores only the mutants in the code each pull request changes against the 46% bar, not the whole module. If a pull request changes in-scope code that has no tests or weak tests, that code scores at or below the bar and the pull request stays blocked until tests that catch its mutants are added. For example, `internal/oauth` has no tests today and scores 0%. A pull request with no in-scope Go changes produces no mutants to score: the target prints `no in-scope mutants to score — nothing to gate` and the job passes. (gremlins v0.6.0 itself reports 0% and exits 10 when every mutant is skipped. The target recognises that all-zero summary and passes it. A change whose mutants are all `NOT COVERED` still blocks.)
 
 To run a single test:
 ```bash

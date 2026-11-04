@@ -61,6 +61,9 @@ jobs:
       - name: make test
         run: make test
 
+      - name: Coverage gate
+        run: make coverage-gate
+
       # Proves the integration-test guard refuses any database not named
       # *_test (and never prints the URL); needs no database.
       - name: make test-db-guard
@@ -68,3 +71,27 @@ jobs:
 
       - name: make test-integration
         run: make test-integration
+
+  mutation:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install gremlins
+        run: |
+          GREMLINS_VERSION=$(sed -nE 's/^GREMLINS_VERSION[[:space:]]*:=[[:space:]]*//p' Makefile)
+          test -n "$GREMLINS_VERSION"
+          go install github.com/go-gremlins/gremlins/cmd/gremlins@${GREMLINS_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: make mutation-test
+        run: make mutation-test MUTATION_DIFF=origin/$GITHUB_BASE_REF

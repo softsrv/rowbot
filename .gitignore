@@ -7,6 +7,7 @@ tmp/
 
 # Test output
 coverage.out
+coverage.filtered.out
 *.test
 
 # OS metadata
