@@ -61,5 +61,10 @@ jobs:
       - name: make test
         run: make test
 
+      # Proves the integration-test guard refuses any database not named
+      # *_test (and never prints the URL); needs no database.
+      - name: make test-db-guard
+        run: make test-db-guard
+
       - name: make test-integration
         run: make test-integration

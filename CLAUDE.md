@@ -9,7 +9,10 @@ make dev              # Hot-reload: air (Go) + Tailwind watch, in parallel
 make run              # Run without hot-reload
 make build            # Compile to ./bin/app
 make test             # Run unit tests
-make test-integration # Run integration tests (needs TEST_DATABASE_URL pointing at a disposable *_test database, applies migrations through the pinned go-run migrate, then runs the integration-tagged tests)
+make test-integration # Integration tests against real Postgres: `make test-db-up`, export the TEST_DATABASE_URL it prints, then `make test-integration` (refuses any non-*_test database, migrates, then runs the integration-tagged tests)
+make test-db-up       # Start (or reuse) a disposable Postgres container and print its TEST_DATABASE_URL
+make test-db-down     # Remove that container
+make test-db-guard    # Check that the integration-test database guard refuses non-*_test URLs (no database needed)
 make test-cover       # Run tests with HTML coverage report
 make fmt              # gofmt the repo
 make lint             # golangci-lint run
@@ -34,7 +37,9 @@ make prod             # Build production image (multi-stage, distroless, non-roo
 To run a single test:
 ```bash
 go test ./internal/auth/... -run TestJWTRoundTrip
-go test -tags integration ./internal/app/... -run TestAuthServiceIntegration
+eval "$(make -s test-db-up)"   # sets TEST_DATABASE_URL=postgres://rowbot:rowbot@localhost:55432/rowbot_test?sslmode=disable
+make test-integration          # guard + migrate (needed once per fresh database) + all integration tests
+go test -tags integration -count=1 ./internal/app/... -run TestIntegration_Refresh
 ```
 
 ## Architecture

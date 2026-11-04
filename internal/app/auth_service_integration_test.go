@@ -19,10 +19,13 @@ import (
 )
 
 // testDB connects to the database pointed to by TEST_DATABASE_URL.
-// Integration tests run through `make test-integration` with TEST_DATABASE_URL
-// set to a migrated, disposable *_test database (`make test-db-up` starts one).
+// Run integration tests through make, which guards, migrates, then tests:
+//
+//	TEST_DATABASE_URL=postgres://.../<name>_test make test-integration
+//
+// (`make test-db-up` starts a disposable one and prints its URL.)
 // A missing URL, an unreachable database or an unmigrated schema fails the
-// test: an integration test never skips.
+// test with a hint: an integration test never skips.
 func testDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -32,7 +35,7 @@ func testDB(t *testing.T) *pgxpool.Pool {
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		t.Fatalf("database unreachable: invalid TEST_DATABASE_URL: %v", err)
+		t.Fatalf("database unreachable: invalid TEST_DATABASE_URL (`make test-db-up` prints a valid one): %v", err)
 	}
 	t.Cleanup(pool.Close)
 	if err := pool.Ping(ctx); err != nil {
@@ -40,10 +43,10 @@ func testDB(t *testing.T) *pgxpool.Pool {
 	}
 	var missing bool
 	if err := pool.QueryRow(ctx, "SELECT to_regclass('public.users') IS NULL").Scan(&missing); err != nil {
-		t.Fatalf("schema check failed: %v", err)
+		t.Fatalf("schema check failed (start a test database with `make test-db-up`, then run `make test-integration`): %v", err)
 	}
 	if missing {
-		t.Fatal("schema not migrated: table users is missing; run `make test-integration` (it applies migrations via test-db-migrate)")
+		t.Fatal("schema not migrated: table users is missing; run `make test-integration` (it applies migrations via test-db-migrate; `make test-db-up` starts a database)")
 	}
 	return pool
 }
