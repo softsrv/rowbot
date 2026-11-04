@@ -11,6 +11,7 @@ make build            # Compile to ./bin/app
 make test             # Run unit tests
 make test-integration # Run integration tests (requires Docker; uses testcontainers)
 make test-cover       # Run tests with HTML coverage report
+make coverage-gate    # Run unit tests and enforce coverage threshold (>= COVERAGE_MIN)
 make fmt              # gofmt the repo
 make lint             # golangci-lint run
 
@@ -30,6 +31,8 @@ make tailwind-watch   # Watch mode (called by make dev)
 make docker-build     # Build dev image
 make prod             # Build production image (multi-stage, distroless, non-root)
 ```
+
+`make coverage-gate` measures unit-test coverage only (excluding sqlc-generated `internal/db/`; untested hand-written packages like `cmd/*` and `internal/oauth` count as 0%). It enforces a minimum coverage bar of 37.2%, configured in `COVERAGE_MIN` in the `Makefile`. `COVERAGE_MIN` is a ratchet that only goes up, and CI blocks any pull request below it.
 
 To run a single test:
 ```bash

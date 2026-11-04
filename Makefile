@@ -1,6 +1,7 @@
 APP_NAME         := rowbot
 BIN_DIR          := ./bin
 MODULE           := github.com/softsrv/rowbot
+COVERAGE_MIN     := 37.2
 
 # cmd/app, cmd/dbreset, and cmd/mockc2 each load ./.env themselves at startup
 # (via godotenv) — this Makefile no longer reads or exports it. The one
@@ -8,7 +9,7 @@ MODULE           := github.com/softsrv/rowbot
 # not our code, so it can't load .env itself — export DATABASE_URL in your
 # shell first (e.g. `set -a && source .env && set +a`) before running them.
 
-.PHONY: dev stop run build test fmt lint check \
+.PHONY: dev stop run build test test-integration test-cover coverage-gate fmt lint check \
         daisyui-install tailwind tailwind-watch \
         migrate-up migrate-down migrate-create migrate-status check-database-url \
         sqlc-generate db-reset \
@@ -59,6 +60,17 @@ test-integration:
 test-cover:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out
+
+coverage-gate:
+	go test -coverprofile=coverage.out ./...
+	@grep -v '^$(MODULE)/internal/db/' coverage.out > coverage.filtered.out
+	@total=$$(go tool cover -func=coverage.filtered.out | awk '/^total:/{sub("%","",$$NF); print $$NF}'); \
+	if awk -v t="$$total" -v m="$(COVERAGE_MIN)" 'BEGIN{exit !(t+0 >= m+0)}'; then \
+		echo "coverage $$total% (minimum $(COVERAGE_MIN)%)"; \
+	else \
+		echo "coverage $$total% is below the required minimum $(COVERAGE_MIN)%"; \
+		exit 1; \
+	fi
 
 fmt:
 	gofmt -w .

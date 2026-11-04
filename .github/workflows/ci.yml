@@ -44,3 +44,6 @@ jobs:
 
       - name: make test
         run: make test
+
+      - name: Coverage gate
+        run: make coverage-gate
